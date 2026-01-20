@@ -5,21 +5,30 @@ LangChain implementation of the prizms multi-perspective LLM tool.
 ## Architecture
 
 ```mermaid
-graph LR
-    subgraph local [Local Setup]
-        LMStudio[LM Studio on Port 1234]
+flowchart LR
+    CLI[CLI Input] --> Main[main.py]
+    
+    subgraph prompts_dir [prompts/]
+        JudgeFile[judge.txt]
+        ChaosFile[chaos_monkey.txt]
+        CriticFile[critic.txt]
     end
     
-    subgraph langchain [LangChain Stack]
-        OpenAI[langchain-openai]
-        Core[langchain-core]
-        Main[langchain]
+    Main --> JudgeFile
+    Main --> ChaosFile
+    Main --> CriticFile
+    
+    subgraph async_calls [Parallel async calls]
+        JudgeFile --> LLM[ChatOpenAI]
+        ChaosFile --> LLM
+        CriticFile --> LLM
     end
     
-    OpenAI -->|OpenAI API| LMStudio
-    Main --> Core
-    Main --> OpenAI
+    LLM --> LMStudio[LM Studio :1234]
+    LLM --> Output[outputs/*.md]
 ```
+
+The tool sends your question to three LLM "personalities" in parallel using async calls. Each personality has its own system prompt stored in the `prompts/` directory, making them easy to refine independently.
 
 The `langchain-openai` package connects to LM Studio using the OpenAI-compatible API, so no special local LLM package is needed. Everything runs locally with no external accounts required.
 
