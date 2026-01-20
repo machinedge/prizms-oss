@@ -1,0 +1,13 @@
+[project]
+name = "prizms-promptflow"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "promptflow>=1.18.2",
+    "promptflow-core>=1.18.2",
+    "promptflow-devkit>=1.18.2",
+    "promptflow-tools>=1.6.1",
+    "promptflow-tracing>=1.18.2",
+]
