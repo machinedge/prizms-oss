@@ -129,3 +129,6 @@ Temporary Items
 
 # Local configuration
 *.local
+
+# personal files
+.personal/
