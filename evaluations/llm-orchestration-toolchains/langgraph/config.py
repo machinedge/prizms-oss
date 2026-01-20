@@ -14,8 +14,8 @@ class Config:
     personalities_dir: Path
     output_dir: Path
     max_rounds: int = 3  # Safety limit for debate rounds
-    default_synthesizer: str | None = None  # Falls back to first personality if None
     consensus_prompt: str = "consensus_check"  # Name of consensus check prompt file
+    synthesizer_prompt: str = "synthesizer"  # Name of synthesizer prompt file
 
 
 def load_config(config_path: Path | None) -> Config:
@@ -37,8 +37,8 @@ def load_config(config_path: Path | None) -> Config:
         personalities_dir=base / data["personalities_dir"],
         output_dir=base / data["output_dir"],
         max_rounds=data.get("max_rounds", 3),
-        default_synthesizer=data.get("default_synthesizer"),
         consensus_prompt=data.get("consensus_prompt", "consensus_check"),
+        synthesizer_prompt=data.get("synthesizer_prompt", "synthesizer"),
     )
 
 

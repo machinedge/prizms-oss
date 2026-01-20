@@ -16,12 +16,13 @@ output_dir = "outputs"
 # Default: 3
 max_rounds = 3
 
-# Default personality to use for final synthesis.
-# If not specified, the first personality (alphabetically) is used.
-# Can be overridden with --synthesizer CLI flag.
-# default_synthesizer = "judge"
-
 # Prompt file to use for consensus detection (without .txt extension).
 # This file is automatically excluded from the list of debate personalities.
 # Default: "consensus_check"
 consensus_prompt = "consensus_check"
+
+# Prompt file for the final synthesis (without .txt extension).
+# This is a dedicated, neutral synthesizer that does NOT participate in debate rounds.
+# It provides a rational, dispassionate integration of all perspectives.
+# Default: "synthesizer"
+synthesizer_prompt = "synthesizer"

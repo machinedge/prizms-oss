@@ -9,7 +9,13 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from rich.layout import Layout
 from rich.live import Live
 
-from display import console, create_round_layout, update_panel
+from display import (
+    console,
+    create_round_layout,
+    print_answers,
+    print_round_summary,
+    update_panel,
+)
 from llm import get_llm
 
 
@@ -138,6 +144,10 @@ def debate_round(state: dict) -> dict:
 
     responses = asyncio.run(run_all())
 
+    # After streaming completes, print compact summary and answers
+    print_round_summary(round_num, responses)
+    print_answers(round_num, responses)
+
     return {
         "rounds": [responses],  # Will be appended via operator.add
         "current_round": round_num,
@@ -226,10 +236,10 @@ Respond with JSON only: {"consensus": true/false, "reasoning": "brief explanatio
 
 
 def synthesize(state: dict) -> dict:
-    """Produce final synthesized output from the designated synthesizer personality.
+    """Produce final synthesized output from the dedicated synthesizer prompt.
 
     The synthesizer reviews all rounds of debate and produces a final
-    integrated perspective.
+    integrated, dispassionate perspective.
 
     Args:
         state: Current debate state
@@ -237,19 +247,20 @@ def synthesize(state: dict) -> dict:
     Returns:
         Updated state with final_synthesis
     """
-    synthesizer = state["synthesizer"]
+    synthesizer_prompt_name = state["synthesizer_prompt"]
     personalities_dir = state["personalities_dir"]
     question = state["question"]
     rounds = state.get("rounds", [])
     consensus_reasoning = state.get("consensus_reasoning", "")
 
-    console.print(f"\n[bold magenta]Synthesis by {synthesizer.replace('_', ' ').title()}[/bold magenta]")
+    display_name = synthesizer_prompt_name.replace("_", " ").title()
+    console.print(f"\n[bold magenta]Synthesis by {display_name}[/bold magenta]")
 
-    # Load synthesizer's personality prompt
+    # Load synthesizer prompt
     try:
-        base_prompt = load_prompt(personalities_dir, synthesizer)
+        base_prompt = load_prompt(personalities_dir, synthesizer_prompt_name)
     except FileNotFoundError:
-        base_prompt = "You are a thoughtful synthesizer of multiple perspectives."
+        base_prompt = "You are a rational, dispassionate synthesizer of multiple perspectives."
 
     # Build context from all rounds
     context_parts = [f"Original Question: {question}\n"]
@@ -257,22 +268,20 @@ def synthesize(state: dict) -> dict:
     for i, round_responses in enumerate(rounds, 1):
         context_parts.append(f"\n## Round {i} Responses\n")
         for personality, response in round_responses.items():
-            display_name = personality.replace("_", " ").title()
+            personality_display = personality.replace("_", " ").title()
             # Truncate for context window
             truncated = response[:1500] + "..." if len(response) > 1500 else response
-            context_parts.append(f"**{display_name}**: {truncated}\n")
+            context_parts.append(f"**{personality_display}**: {truncated}\n")
 
     context_parts.append(f"\n## Debate Status\n{consensus_reasoning}\n")
     context_parts.append(
-        "\n---\n\nAs the synthesizer, provide a final integrated perspective "
+        "\n---\n\nProvide a final integrated perspective "
         "that captures the key insights from all viewpoints and rounds of debate."
     )
 
-    synthesis_prompt = base_prompt + "\n\nYou are now acting as the final synthesizer for this debate."
-
     llm = get_llm()
     messages = [
-        SystemMessage(content=synthesis_prompt),
+        SystemMessage(content=base_prompt),
         HumanMessage(content="".join(context_parts)),
     ]
 

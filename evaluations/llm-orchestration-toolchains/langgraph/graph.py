@@ -12,13 +12,13 @@ class DebateState(TypedDict):
     question: str
     personalities: list[str]  # Dynamic list of N personalities
     personalities_dir: str  # Path to personality prompts
-    synthesizer: str  # Which personality synthesizes
     max_rounds: int  # Safety limit
     current_round: int  # Counter
     rounds: Annotated[list[dict[str, str]], operator.add]  # Append-only history
     consensus_reached: bool
     consensus_reasoning: str  # Explanation from consensus check
     consensus_prompt: str  # Name of the consensus check prompt file
+    synthesizer_prompt: str  # Name of the synthesizer prompt file
     final_synthesis: str | None
 
 

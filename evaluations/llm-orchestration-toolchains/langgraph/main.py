@@ -22,7 +22,6 @@ def run_debate(
     question: str,
     config: Config,
     personalities: list[str],
-    synthesizer: str,
     max_rounds: int,
 ) -> dict:
     """Run the multi-round debate graph.
@@ -31,7 +30,6 @@ def run_debate(
         question: The question to debate
         config: Configuration object
         personalities: List of personality names
-        synthesizer: Which personality synthesizes the final output
         max_rounds: Maximum number of debate rounds
 
     Returns:
@@ -45,13 +43,13 @@ def run_debate(
         "question": question,
         "personalities": personalities,
         "personalities_dir": str(config.personalities_dir),
-        "synthesizer": synthesizer,
         "max_rounds": max_rounds,
         "current_round": 0,
         "rounds": [],
         "consensus_reached": False,
         "consensus_reasoning": "",
         "consensus_prompt": config.consensus_prompt,
+        "synthesizer_prompt": config.synthesizer_prompt,
         "final_synthesis": None,
     }
 
@@ -64,7 +62,6 @@ def run_debate(
 def main(
     question: str,
     config: Config,
-    synthesizer_override: str | None = None,
     max_rounds_override: int | None = None,
 ) -> None:
     """Main entry point.
@@ -72,12 +69,11 @@ def main(
     Args:
         question: The question to debate
         config: Configuration object
-        synthesizer_override: CLI override for synthesizer personality
         max_rounds_override: CLI override for max rounds
     """
-    personalities = discover_personalities(
-        config.personalities_dir, exclude={config.consensus_prompt}
-    )
+    # Exclude system prompts (consensus_check, synthesizer) from debate personalities
+    excluded = {config.consensus_prompt, config.synthesizer_prompt}
+    personalities = discover_personalities(config.personalities_dir, exclude=excluded)
 
     if not personalities:
         console.print(
@@ -85,37 +81,16 @@ def main(
         )
         return
 
-    # Determine synthesizer
-    if synthesizer_override:
-        if synthesizer_override not in personalities:
-            console.print(
-                f"[red]Error:[/red] Synthesizer '{synthesizer_override}' not found. "
-                f"Available: {', '.join(personalities)}"
-            )
-            return
-        synthesizer = synthesizer_override
-    elif config.default_synthesizer:
-        if config.default_synthesizer not in personalities:
-            console.print(
-                f"[yellow]Warning:[/yellow] Default synthesizer '{config.default_synthesizer}' "
-                f"not found, using '{personalities[0]}'"
-            )
-            synthesizer = personalities[0]
-        else:
-            synthesizer = config.default_synthesizer
-    else:
-        synthesizer = personalities[0]
-
     # Determine max rounds
     max_rounds = max_rounds_override if max_rounds_override else config.max_rounds
 
     console.print(f"[bold]Question:[/bold] {question}")
     console.print(f"[dim]Personalities: {', '.join(personalities)}[/dim]")
-    console.print(f"[dim]Synthesizer: {synthesizer.replace('_', ' ').title()}[/dim]")
+    console.print(f"[dim]Synthesizer: {config.synthesizer_prompt}[/dim]")
     console.print(f"[dim]Max rounds: {max_rounds}[/dim]\n")
 
     # Run the debate
-    final_state = run_debate(question, config, personalities, synthesizer, max_rounds)
+    final_state = run_debate(question, config, personalities, max_rounds)
 
     # Collect all responses from all rounds for saving
     all_responses: dict[str, str] = {}
@@ -125,9 +100,9 @@ def main(
     if rounds:
         all_responses = rounds[-1].copy()
 
-    # Add synthesis as a special entry
+    # Add synthesis as a special entry (will be handled separately for COT/answer split)
     if final_state.get("final_synthesis"):
-        all_responses[f"{synthesizer}_synthesis"] = final_state["final_synthesis"]
+        all_responses["synthesizer"] = final_state["final_synthesis"]
 
     console.print()  # Add spacing
     save_responses(all_responses, config.output_dir)
@@ -162,11 +137,6 @@ if __name__ == "__main__":
         help="Path to TOML config file (default: use prompts/ and outputs/ in script directory)",
     )
     parser.add_argument(
-        "--synthesizer", "-s",
-        type=str,
-        help="Personality to use for final synthesis (default: first personality or config default)",
-    )
-    parser.add_argument(
         "--max-rounds", "-r",
         type=int,
         help="Maximum number of debate rounds (default: 3 or config value)",
@@ -188,4 +158,4 @@ if __name__ == "__main__":
         parser.error("Either a question or --file must be provided")
 
     config = load_config(args.config)
-    main(question, config, args.synthesizer, args.max_rounds)
+    main(question, config, args.max_rounds)

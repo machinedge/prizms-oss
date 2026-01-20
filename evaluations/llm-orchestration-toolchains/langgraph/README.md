@@ -19,7 +19,7 @@ This is a fork of the [LangChain implementation](../langchain/) that adds multi-
 langgraph/
   graph.py              # LangGraph state and graph definition
   nodes.py              # Node functions (debate_round, check_consensus, synthesize)
-  config.py             # Configuration with max_rounds, default_synthesizer
+  config.py             # Configuration with max_rounds, consensus_prompt, synthesizer_prompt
   display.py            # Rich terminal UI with round labels
   llm.py                # LLM client factory
   output.py             # Response parsing and file output
@@ -31,6 +31,7 @@ langgraph/
     critic.txt          # Critical analysis perspective
     judge.txt           # Balanced assessment perspective
     consensus_check.txt # Neutral consensus detection prompt
+    synthesizer.txt     # Dedicated rational synthesizer (not a debate participant)
   outputs/              # Generated response files
 ```
 
@@ -42,12 +43,12 @@ langgraph/
 class DebateState(TypedDict):
     question: str
     personalities: list[str]           # Dynamic list of N personalities
-    synthesizer: str                   # Which personality synthesizes
     max_rounds: int                    # Safety limit
     current_round: int                 # Counter
     rounds: list[dict[str, str]]       # History of all rounds
     consensus_reached: bool
     consensus_prompt: str              # Name of consensus check prompt file
+    synthesizer_prompt: str            # Name of synthesizer prompt file
     final_synthesis: str | None
 ```
 
@@ -108,7 +109,17 @@ After each round (starting from round 2), a neutral LLM call analyzes whether th
 
 ### Synthesis
 
-Once debate concludes, the designated synthesizer personality produces a final integrated perspective that incorporates insights from all rounds.
+Once debate concludes, a dedicated synthesizer (not a debate participant) produces a final integrated perspective. The synthesizer is a rational, dispassionate voice that:
+- Does NOT participate in debate rounds
+- Reviews all perspectives objectively
+- Produces a balanced, actionable conclusion
+
+### Collapsible UI
+
+The terminal display uses a web-chat-like pattern:
+1. **During streaming**: Live content shown in multi-column panels
+2. **After round completes**: Compact summary with character counts
+3. **Answers displayed prominently**: Extracted content after `</think>` tags shown clearly
 
 ## Dependencies
 
@@ -157,11 +168,12 @@ output_dir = "outputs"
 # Maximum debate rounds before forcing synthesis
 max_rounds = 3
 
-# Default synthesizer personality (optional, defaults to first)
-default_synthesizer = "judge"
-
 # Prompt file for consensus detection (excluded from personalities)
 consensus_prompt = "consensus_check"
+
+# Prompt file for final synthesis (excluded from personalities)
+# A dedicated, neutral synthesizer that does not participate in debate rounds
+synthesizer_prompt = "synthesizer"
 ```
 
 ## Running
@@ -170,11 +182,11 @@ consensus_prompt = "consensus_check"
 # Basic usage with defaults
 uv run python main.py "Your question here"
 
-# Specify synthesizer and max rounds
-uv run python main.py "Your question" --synthesizer judge --max-rounds 5
+# Specify max rounds
+uv run python main.py "Your question" --max-rounds 5
 
 # Short form
-uv run python main.py "Your question" -s judge -r 5
+uv run python main.py "Your question" -r 5
 
 # With question from file
 uv run python main.py --file prompt.txt
@@ -189,7 +201,6 @@ uv run python main.py --config my-config.toml "Your question"
 |--------|-------|-------------|
 | `--file` | `-f` | Read question from .txt or .md file |
 | `--config` | | Path to TOML config file |
-| `--synthesizer` | `-s` | Personality for final synthesis |
 | `--max-rounds` | `-r` | Maximum debate rounds |
 
 ## Output
@@ -200,8 +211,8 @@ Responses are saved to the configured output directory:
 |--------------|-------------|
 | `{personality}.cot.md` | Chain of thought (last round) |
 | `{personality}.ans.md` | Final answer (last round) |
-| `{synthesizer}_synthesis.cot.md` | Synthesis reasoning |
-| `{synthesizer}_synthesis.ans.md` | Final synthesized answer |
+| `synthesizer.cot.md` | Synthesis reasoning |
+| `synthesizer.ans.md` | Final synthesized answer |
 
 ## Comparison with LangChain Version
 
