@@ -2,34 +2,48 @@
 
 LangChain implementation of the prizms multi-perspective LLM tool.
 
-## Architecture
+## Project Structure
 
-```mermaid
-flowchart LR
-    subgraph input [Input]
-        Q[Question]
-    end
-    subgraph parallel [Parallel Streams]
-        J[Judge Stream]
-        C[Chaos Monkey Stream]
-        R[Critic Stream]
-    end
-    subgraph display [Rich Layout]
-        Col1[Column 1]
-        Col2[Column 2]
-        Col3[Column 3]
-    end
-    Q --> J & C & R
-    J --> Col1
-    C --> Col2
-    R --> Col3
+```
+langchain/
+  config.py             # Configuration loading and personality discovery
+  display.py            # Rich terminal UI components
+  llm.py                # LLM client factory
+  output.py             # Response parsing and file output
+  main.py               # CLI entry point and orchestration
+  config.example.toml   # Example configuration file
+  pyproject.toml        # Project dependencies
+  prompts/              # Personality prompt files (*.txt)
+  outputs/              # Generated response files (*.cot.md, *.ans.md)
 ```
 
-The tool sends your question to three LLM "personalities" in parallel using async streaming. Each personality has its own system prompt stored in the `prompts/` directory, making them easy to refine independently.
+## Architecture
+
+### Data Flow
+
+```mermaid
+flowchart TD
+    CLI["CLI: --config config.toml question"]
+    LoadConfig["config.load_config()"]
+    Discover["config.discover_personalities()"]
+    CreateLayout["display.create_layout()"]
+    GetLLM["llm.get_llm()"]
+    Stream["stream_personality() x N"]
+    Save["output.save_responses()"]
+    
+    CLI --> LoadConfig
+    LoadConfig --> Discover
+    Discover --> CreateLayout
+    CreateLayout --> Stream
+    GetLLM --> Stream
+    Stream --> Save
+```
 
 ### Streaming Multi-Column Display
 
-Using Rich's `Layout` and `Live` components, responses stream in real-time across three side-by-side terminal panels:
+The tool sends your question to multiple LLM "personalities" in parallel using async streaming. Each personality has its own system prompt stored in the personalities directory (default: `prompts/`), making them easy to refine independently.
+
+Using Rich's `Layout` and `Live` components, responses stream in real-time across side-by-side terminal panels:
 
 ```
 ┌─────────────────┬─────────────────┬─────────────────┐
@@ -40,6 +54,8 @@ Using Rich's `Layout` and `Live` components, responses stream in real-time acros
 │ ...streaming... │ ...streaming... │ ...streaming... │
 └─────────────────┴─────────────────┴─────────────────┘
 ```
+
+The layout dynamically adjusts to the number of personality files found in the configured directory.
 
 ### Output File Separation
 
@@ -92,21 +108,51 @@ OPENAI_API_BASE=http://localhost:1234/v1
 OPENAI_API_KEY=not-needed
 ```
 
+## Configuration
+
+### Using a Config File
+
+You can specify custom directories for personalities and output using a TOML config file:
+
+```bash
+uv run python main.py --config path/to/config.toml "Your question here"
+```
+
+### Config File Format
+
+Create a TOML file (see `config.example.toml`):
+
+```toml
+# Directory containing personality prompt files (*.txt)
+personalities_dir = "prompts"
+
+# Directory where output files will be saved
+output_dir = "outputs"
+```
+
+Paths in the config file are resolved relative to the config file's location.
+
+### Default Behavior
+
+If no `--config` is provided, the tool uses:
+- `prompts/` directory (relative to script) for personality files
+- `outputs/` directory (relative to script) for output files
+
 ## Running
 
 ```bash
+# With default configuration
 uv run python main.py "Your question here"
+
+# With custom config file
+uv run python main.py --config my-config.toml "Your question here"
 ```
 
 ## Output
 
-Responses are saved to the `outputs/` directory with separate files for chain-of-thought and answers:
+Responses are saved to the configured output directory with separate files for chain-of-thought and answers. For each personality file (e.g., `judge.txt`), two output files are created:
 
-| File | Description |
-|------|-------------|
-| `judge.cot.md` | Judge's reasoning process |
-| `judge.ans.md` | Judge's final answer |
-| `chaos_monkey.cot.md` | Chaos Monkey's reasoning process |
-| `chaos_monkey.ans.md` | Chaos Monkey's final answer |
-| `critic.cot.md` | Critic's reasoning process |
-| `critic.ans.md` | Critic's final answer |
+| File Pattern | Description |
+|--------------|-------------|
+| `{personality}.cot.md` | The personality's reasoning process |
+| `{personality}.ans.md` | The personality's final answer |
