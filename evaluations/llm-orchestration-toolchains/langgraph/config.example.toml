@@ -1,0 +1,27 @@
+# Prizms LangGraph Configuration
+#
+# This file configures the multi-round debate LLM tool.
+# Paths are relative to this config file's location.
+
+# Directory containing personality prompt files (*.txt)
+# Each .txt file defines a personality that will participate in the debate.
+personalities_dir = "prompts"
+
+# Directory where output files will be saved
+# Creates *.cot.md (chain of thought) and *.ans.md (answer) files for each personality.
+output_dir = "outputs"
+
+# Maximum number of debate rounds before forcing synthesis.
+# The debate will end earlier if consensus is reached.
+# Default: 3
+max_rounds = 3
+
+# Default personality to use for final synthesis.
+# If not specified, the first personality (alphabetically) is used.
+# Can be overridden with --synthesizer CLI flag.
+# default_synthesizer = "judge"
+
+# Prompt file to use for consensus detection (without .txt extension).
+# This file is automatically excluded from the list of debate personalities.
+# Default: "consensus_check"
+consensus_prompt = "consensus_check"
