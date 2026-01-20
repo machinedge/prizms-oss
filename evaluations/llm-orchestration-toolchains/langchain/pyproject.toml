@@ -11,4 +11,5 @@ dependencies = [
     "langchain-community>=0.3",
     "langgraph>=0.2",
     "langchain-text-splitters>=0.3",
+    "rich>=13.7.0",
 ]

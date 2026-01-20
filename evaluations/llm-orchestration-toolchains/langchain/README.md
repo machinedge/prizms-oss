@@ -6,29 +6,47 @@ LangChain implementation of the prizms multi-perspective LLM tool.
 
 ```mermaid
 flowchart LR
-    CLI[CLI Input] --> Main[main.py]
-    
-    subgraph prompts_dir [prompts/]
-        JudgeFile[judge.txt]
-        ChaosFile[chaos_monkey.txt]
-        CriticFile[critic.txt]
+    subgraph input [Input]
+        Q[Question]
     end
-    
-    Main --> JudgeFile
-    Main --> ChaosFile
-    Main --> CriticFile
-    
-    subgraph async_calls [Parallel async calls]
-        JudgeFile --> LLM[ChatOpenAI]
-        ChaosFile --> LLM
-        CriticFile --> LLM
+    subgraph parallel [Parallel Streams]
+        J[Judge Stream]
+        C[Chaos Monkey Stream]
+        R[Critic Stream]
     end
-    
-    LLM --> LMStudio[LM Studio :1234]
-    LLM --> Output[outputs/*.md]
+    subgraph display [Rich Layout]
+        Col1[Column 1]
+        Col2[Column 2]
+        Col3[Column 3]
+    end
+    Q --> J & C & R
+    J --> Col1
+    C --> Col2
+    R --> Col3
 ```
 
-The tool sends your question to three LLM "personalities" in parallel using async calls. Each personality has its own system prompt stored in the `prompts/` directory, making them easy to refine independently.
+The tool sends your question to three LLM "personalities" in parallel using async streaming. Each personality has its own system prompt stored in the `prompts/` directory, making them easy to refine independently.
+
+### Streaming Multi-Column Display
+
+Using Rich's `Layout` and `Live` components, responses stream in real-time across three side-by-side terminal panels:
+
+```
+┌─────────────────┬─────────────────┬─────────────────┐
+│     Judge       │  Chaos Monkey   │     Critic      │
+├─────────────────┼─────────────────┼─────────────────┤
+│ <think>         │ <think>         │ <think>         │
+│ Analyzing...    │ What if...      │ Let me examine  │
+│ ...streaming... │ ...streaming... │ ...streaming... │
+└─────────────────┴─────────────────┴─────────────────┘
+```
+
+### Output File Separation
+
+Responses are split into chain-of-thought (COT) and answer files:
+
+- **Chain of Thought** (`*.cot.md`): Content within `<think>...</think>` tags showing the model's reasoning process
+- **Answer** (`*.ans.md`): The final response after removing the thinking block
 
 The `langchain-openai` package connects to LM Studio using the OpenAI-compatible API, so no special local LLM package is needed. Everything runs locally with no external accounts required.
 
@@ -44,6 +62,7 @@ All packages are MIT licensed and require no accounts or API keys:
 | `langchain-community` | Community integrations and tools |
 | `langgraph` | Graph-based agent workflows |
 | `langchain-text-splitters` | Text chunking utilities |
+| `rich` | Terminal UI with multi-column streaming display |
 
 ## Setup
 
@@ -81,7 +100,13 @@ uv run python main.py "Your question here"
 
 ## Output
 
-Responses are saved to the `outputs/` directory:
-- `judge.md`
-- `chaos_monkey.md`
-- `critic.md`
+Responses are saved to the `outputs/` directory with separate files for chain-of-thought and answers:
+
+| File | Description |
+|------|-------------|
+| `judge.cot.md` | Judge's reasoning process |
+| `judge.ans.md` | Judge's final answer |
+| `chaos_monkey.cot.md` | Chaos Monkey's reasoning process |
+| `chaos_monkey.ans.md` | Chaos Monkey's final answer |
+| `critic.cot.md` | Critic's reasoning process |
+| `critic.ans.md` | Critic's final answer |
