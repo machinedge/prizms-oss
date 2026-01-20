@@ -23,7 +23,7 @@ langchain/
 
 ```mermaid
 flowchart TD
-    CLI["CLI: --config config.toml question"]
+    CLI["CLI: --config config.toml --file prompt.txt"]
     LoadConfig["config.load_config()"]
     Discover["config.discover_personalities()"]
     CreateLayout["display.create_layout()"]
@@ -146,6 +146,13 @@ uv run python main.py "Your question here"
 
 # With custom config file
 uv run python main.py --config my-config.toml "Your question here"
+
+# With question from a file (.txt or .md)
+uv run python main.py --file prompt.txt
+uv run python main.py -f prompt.md
+
+# Combine with custom config
+uv run python main.py --config my-config.toml --file prompt.md
 ```
 
 ## Output

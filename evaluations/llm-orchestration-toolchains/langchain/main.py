@@ -8,6 +8,7 @@ Saves each response to separate chain-of-thought and answer markdown files.
 
 import argparse
 import asyncio
+import sys
 from pathlib import Path
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -97,7 +98,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Multi-perspective LLM tool using LangChain"
     )
-    parser.add_argument("question", help="Question to ask the personalities")
+    parser.add_argument(
+        "question",
+        nargs="?",
+        help="Question to ask the personalities",
+    )
+    parser.add_argument(
+        "-f", "--file",
+        type=Path,
+        help="Path to a .txt or .md file containing the question",
+    )
     parser.add_argument(
         "--config",
         type=Path,
@@ -105,5 +115,19 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    # Resolve question from file or argument
+    if args.file:
+        if not args.file.exists():
+            console.print(f"[red]Error:[/red] File not found: {args.file}")
+            sys.exit(1)
+        if args.file.suffix.lower() not in (".txt", ".md"):
+            console.print(f"[red]Error:[/red] File must be .txt or .md: {args.file}")
+            sys.exit(1)
+        question = args.file.read_text().strip()
+    elif args.question:
+        question = args.question
+    else:
+        parser.error("Either a question or --file must be provided")
+
     config = load_config(args.config)
-    asyncio.run(main(args.question, config))
+    asyncio.run(main(question, config))
