@@ -15,9 +15,9 @@ dependencies = [
     "pyyaml>=6.0",
 ]
 
-[project.scripts]
-prizms = "main:main"
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["core", "providers"]
