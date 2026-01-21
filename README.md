@@ -2,6 +2,29 @@
 
 Multi-round debate LLM tool using LangGraph with multi-provider support. Prizms sends a question to multiple "personality" prompts for multi-round debate with real-time streaming output until consensus is reached.
 
+## How It Works
+
+```mermaid
+flowchart TD
+    Q[User Question] --> P1[Critic]
+    Q --> P2[Judge]
+    Q --> P3[Chaos Monkey]
+    
+    P1 --> R1[Round N Responses]
+    P2 --> R1
+    P3 --> R1
+    
+    R1 --> CC{Consensus Check}
+    
+    CC -->|No Consensus| NR[Next Round]
+    NR -->|Personalities respond to each other| P1
+    
+    CC -->|Consensus or Max Rounds| S[Synthesizer]
+    S --> F[Final Integrated Answer]
+```
+
+Each personality brings a unique perspective to the debate. They respond to each other across rounds until consensus is reached or the maximum rounds limit is hit. A synthesizer then produces the final integrated answer.
+
 ## Prerequisites
 
 - **Python 3.12+**
