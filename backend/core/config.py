@@ -6,7 +6,6 @@ from pathlib import Path
 import yaml
 
 from providers.base import ModelConfig
-from providers.factory import parse_model_string
 
 
 @dataclass
@@ -83,14 +82,25 @@ def _parse_model_list(
 
     Returns:
         Dictionary mapping model_name to ModelConfig
+
+    Raises:
+        ValueError: If a model entry is missing the required 'provider' field
     """
     models = {}
     for entry in model_list:
         model_name = entry["model_name"]
         params = entry.get("litellm_params", {})
-        model_string = params.get("model", "")
 
-        provider_type, model_id = parse_model_string(model_string)
+        # Provider is now an explicit field (required)
+        provider_type = params.get("provider")
+        if not provider_type:
+            raise ValueError(
+                f"Model '{model_name}' is missing required 'provider' field in litellm_params. "
+                f"Valid providers: ollama, vllm, lm_studio"
+            )
+
+        # Model ID is the full model identifier (e.g., "qwen/qwen3-4B-Thinking-2507")
+        model_id = params.get("model", "")
 
         models[model_name] = ModelConfig(
             model_name=model_name,

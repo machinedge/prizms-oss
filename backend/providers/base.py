@@ -34,11 +34,14 @@ class LLMProvider(ABC):
     """
 
     @abstractmethod
-    def get_llm(self, config: ModelConfig) -> ChatOpenAI:
+    def get_llm(self, config: ModelConfig, instance: int | None = None) -> ChatOpenAI:
         """Return a configured LLM client for the given model.
 
         Args:
             config: Model configuration with provider details
+            instance: Optional instance number for providers that require
+                     separate instances for parallel execution (e.g., LM Studio).
+                     If None or 0, no suffix is added.
 
         Returns:
             A configured ChatOpenAI client

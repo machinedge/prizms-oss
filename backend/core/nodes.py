@@ -47,6 +47,7 @@ def get_llm_for_personality(
     personality_name: str,
     config: Config,
     providers: dict[str, LLMProvider],
+    instance: int | None = None,
 ):
     """Get the LLM client for a specific personality.
 
@@ -54,6 +55,8 @@ def get_llm_for_personality(
         personality_name: Name of the personality
         config: Full configuration object
         providers: Dictionary of provider instances by type
+        instance: Optional instance number for providers that require
+                 separate instances for parallel execution (e.g., LM Studio).
 
     Returns:
         Configured ChatOpenAI client for this personality
@@ -61,7 +64,7 @@ def get_llm_for_personality(
     personality_config = config.personalities[personality_name]
     model_config = config.models[personality_config.model_name]
     provider = providers[model_config.provider_type]
-    return provider.get_llm(model_config)
+    return provider.get_llm(model_config, instance)
 
 
 async def stream_personality(
@@ -73,6 +76,7 @@ async def stream_personality(
     buffers: dict[str, str],
     layout: Layout,
     live: Live,
+    instance: int | None = None,
 ) -> tuple[str, str]:
     """Stream LLM response for a personality and update the display.
 
@@ -85,12 +89,14 @@ async def stream_personality(
         buffers: Shared dict for accumulating streamed content
         layout: Rich Layout for display
         live: Rich Live context for refreshing
+        instance: Optional instance number for providers that require
+                 separate instances for parallel execution (e.g., LM Studio).
 
     Returns:
         Tuple of (personality_name, full_response)
     """
     # Get the LLM for this personality
-    llm = get_llm_for_personality(personality_name, config, providers)
+    llm = get_llm_for_personality(personality_name, config, providers, instance)
 
     # Load the prompt for this personality
     personality_config = config.personalities[personality_name]
@@ -112,6 +118,40 @@ async def stream_personality(
             live.refresh()
 
     return (personality_name, buffers[personality_name])
+
+
+def _compute_provider_instances(
+    personalities: list[str], config: Config
+) -> dict[str, int]:
+    """Compute per-provider instance numbers for each personality.
+
+    LM Studio requires separate instances for parallel execution, so we need
+    to assign instance numbers within each provider type, not globally.
+
+    Args:
+        personalities: List of personality names
+        config: Configuration with personality and model mappings
+
+    Returns:
+        Dictionary mapping personality name to its provider-specific instance number
+    """
+    # Count instances per provider type
+    provider_counts: dict[str, int] = {}
+    instance_map: dict[str, int] = {}
+
+    for personality_name in personalities:
+        personality_config = config.personalities[personality_name]
+        model_config = config.models[personality_config.model_name]
+        provider_type = model_config.provider_type
+
+        # Get current count for this provider (starts at 0)
+        instance_num = provider_counts.get(provider_type, 0)
+        instance_map[personality_name] = instance_num
+
+        # Increment count for next personality using this provider
+        provider_counts[provider_type] = instance_num + 1
+
+    return instance_map
 
 
 def debate_round(state: dict) -> dict:
@@ -142,6 +182,9 @@ def debate_round(state: dict) -> dict:
     layout = create_round_layout(personalities, round_num)
     buffers: dict[str, str] = {}
 
+    # Compute per-provider instance numbers for LM Studio parallel execution
+    instance_map = _compute_provider_instances(personalities, config)
+
     # Initialize panels
     for personality in personalities:
         update_panel(layout, personality, "Waiting for response...")
@@ -158,6 +201,7 @@ def debate_round(state: dict) -> dict:
                     buffers,
                     layout,
                     live,
+                    instance=instance_map[p],  # Per-provider instance number
                 )
                 for p in personalities
             ]

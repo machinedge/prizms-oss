@@ -12,11 +12,12 @@ class OllamaProvider(LLMProvider):
     Default URL: http://localhost:11434/v1
     """
 
-    def get_llm(self, config: ModelConfig) -> ChatOpenAI:
+    def get_llm(self, config: ModelConfig, instance: int | None = None) -> ChatOpenAI:
         """Return a ChatOpenAI client configured for Ollama.
 
         Args:
             config: Model configuration with Ollama server details
+            instance: Ignored. Ollama handles concurrent requests internally.
 
         Returns:
             A configured ChatOpenAI client
