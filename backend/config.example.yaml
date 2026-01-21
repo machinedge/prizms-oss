@@ -1,0 +1,79 @@
+# Prizms Backend Configuration
+#
+# This file configures the multi-round debate LLM tool with multi-provider support.
+# Uses LiteLLM-style model_list format for industry-standard configuration.
+#
+# Copy this file to config.yaml and customize for your setup.
+
+# Debate settings
+debate_settings:
+  # Directory where output files will be saved
+  # Creates *.cot.md (chain of thought) and *.ans.md (answer) files for each personality.
+  output_dir: outputs
+
+  # Maximum number of debate rounds before forcing synthesis.
+  # The debate will end earlier if consensus is reached.
+  max_rounds: 3
+
+  # Name of the consensus check personality (must be defined in personalities below)
+  consensus_prompt: consensus_check
+
+  # Name of the synthesizer personality (must be defined in personalities below)
+  synthesizer_prompt: synthesizer
+
+# LiteLLM-style model definitions
+# Each entry defines a model with a friendly name and provider-specific parameters.
+# The model field uses format: provider/model_id (e.g., ollama/llama3, vllm/mistral-7b)
+model_list:
+  # Ollama models - Default URL: http://localhost:11434/v1
+  - model_name: ollama-llama3
+    litellm_params:
+      model: ollama/llama3
+      api_base: http://localhost:11434/v1
+      api_key: ""  # Not needed for local Ollama
+
+  - model_name: ollama-llama3-70b
+    litellm_params:
+      model: ollama/llama3:70b
+      api_base: http://localhost:11434/v1
+      api_key: ""
+
+  # vLLM models - Default URL: http://localhost:8000/v1
+  - model_name: vllm-mistral
+    litellm_params:
+      model: vllm/mistral-7b
+      api_base: http://localhost:8000/v1
+      api_key: ""  # Not needed for local vLLM
+
+  # LM Studio models - Default URL: http://localhost:1234/v1
+  - model_name: lm-studio-qwen
+    litellm_params:
+      model: lm_studio/qwen3-4b
+      api_base: http://localhost:1234/v1
+      api_key: ""  # Not needed for local LM Studio
+
+# Personality definitions
+# Each personality references a model by model_name and points to a prompt file.
+# All personalities must be explicitly listed here (no auto-discovery).
+personalities:
+  # Debate personalities - these participate in the multi-round debate
+  - name: critic
+    prompt: prompts/critic.txt
+    model_name: ollama-llama3
+
+  - name: judge
+    prompt: prompts/judge.txt
+    model_name: ollama-llama3
+
+  - name: chaos_monkey
+    prompt: prompts/chaos_monkey.txt
+    model_name: ollama-llama3
+
+  # System personalities - these are used for consensus checking and synthesis
+  - name: consensus_check
+    prompt: prompts/consensus_check.txt
+    model_name: ollama-llama3
+
+  - name: synthesizer
+    prompt: prompts/synthesizer.txt
+    model_name: ollama-llama3
