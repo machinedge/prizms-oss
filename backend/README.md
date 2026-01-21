@@ -115,13 +115,13 @@ System personalities (`consensus_check`, `synthesizer`) must also be defined.
 
 ```bash
 # Run with a question
-python main.py --config config.yaml "What is the meaning of life?"
+uv run python main.py --config config.yaml "What is the meaning of life?"
 
 # Run with question from file
-python main.py --config config.yaml -f question.txt
+uv run python main.py --config config.yaml -f question.txt
 
 # Override max rounds
-python main.py --config config.yaml -r 5 "Your question here"
+uv run python main.py --config config.yaml -r 5 "Your question here"
 ```
 
 ### Command-line Options
