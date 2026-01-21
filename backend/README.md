@@ -43,6 +43,18 @@ flowchart LR
 
 All providers use OpenAI-compatible APIs, allowing seamless switching between them.
 
+## Prerequisites
+
+- **Python 3.12+**
+- **[uv](https://docs.astral.sh/uv/getting-started/installation/)** - Fast Python package manager (recommended)
+  ```bash
+  # macOS/Linux
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  
+  # Windows
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
+
 ## Installation
 
 ```bash
@@ -136,25 +148,39 @@ uv run python main.py --config config.yaml -r 5 "Your question here"
 
 ### Ollama
 
-1. Install Ollama: https://ollama.ai
-2. Pull a model: `ollama pull llama3`
-3. Ollama runs automatically on `localhost:11434`
+1. **Install Ollama:** Download from [ollama.com/download](https://ollama.com/download)
+2. **Pull a model:** `ollama pull llama3`
+3. **Verify it's running:** Ollama starts automatically as a background service on `localhost:11434`
+
+> **Tip:** Ollama is the easiest provider to set up - just install and pull a model.
 
 ### vLLM
 
-1. Install vLLM: `pip install vllm`
-2. Start the server:
+> **Note:** vLLM requires a CUDA-compatible GPU.
+
+1. **Install vLLM:** See [vLLM Installation Guide](https://docs.vllm.ai/en/latest/getting_started/installation.html)
+   ```bash
+   pip install vllm
+   ```
+2. **Start the server:**
    ```bash
    python -m vllm.entrypoints.openai.api_server \
      --model mistralai/Mistral-7B-v0.1 \
      --port 8000
    ```
 
+> **Tip:** For quick setup, use the official Docker image:
+> ```bash
+> docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest --model mistralai/Mistral-7B-v0.1
+> ```
+
 ### LM Studio
 
-1. Download LM Studio: https://lmstudio.ai
-2. Load a model in the GUI
-3. Start the local server (Settings → Local Server)
+1. **Download LM Studio:** [lmstudio.ai](https://lmstudio.ai/)
+2. **Load a model:** Use the Discover tab to download, then load in the Chat tab
+3. **Start local server:** Go to the "Local Server" tab (left sidebar) and click "Start Server"
+
+> **Tip:** The server runs on `localhost:1234` by default. Ensure the server is started before running Prizms.
 
 ## Output
 
