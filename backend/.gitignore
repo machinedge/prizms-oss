@@ -1,0 +1,17 @@
+# User configuration (use config.example.yaml as template)
+config.yaml
+
+# Output directory
+outputs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+
+# uv
+uv.lock
