@@ -11,7 +11,16 @@ Prizms sends a question to multiple "personality" prompts for multi-round debate
 ```mermaid
 flowchart LR
     MainPy[main.py] --> Core
+    RunApiPy[run_api.py] --> API
+    API --> Core
     Core --> Providers
+    
+    subgraph API [api module]
+        AppPy[app.py]
+        APIConfigPy[config.py]
+        Routes[routes/]
+        Middleware[middleware/]
+    end
     
     subgraph Core [core module]
         ConfigPy[config.py]
@@ -160,6 +169,54 @@ uv run python main.py --config config.yaml -r 5 "Your question here"
 | `--config` | Path to YAML config file (required) |
 | `-f, --file` | Read question from a .txt or .md file |
 | `-r, --max-rounds` | Override maximum debate rounds |
+
+## API Server
+
+Prizms includes a REST API for integration with web frontends.
+
+### Running the API
+
+```bash
+# Development mode (with auto-reload)
+uv run python run_api.py --reload
+
+# Production mode
+uv run python run_api.py
+
+# Custom host/port
+uv run python run_api.py --host 127.0.0.1 --port 9000
+```
+
+### Configuration
+
+Copy `.env.example` to `.env` and configure:
+
+```bash
+cp .env.example .env
+# Edit .env with your settings
+```
+
+All settings use the `PRIZMS_` prefix:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `PRIZMS_HOST` | Host to bind to | `0.0.0.0` |
+| `PRIZMS_PORT` | Port to bind to | `8000` |
+| `PRIZMS_DEBUG` | Enable debug mode (enables docs) | `false` |
+| `PRIZMS_RELOAD` | Enable auto-reload | `false` |
+| `PRIZMS_CORS_ORIGINS` | Allowed CORS origins (JSON array) | `["http://localhost:5173","http://localhost:3000"]` |
+
+### API Documentation
+
+When running in debug mode (`PRIZMS_DEBUG=true`), API documentation is available at:
+
+- **Swagger UI:** `http://localhost:8000/api/docs`
+- **ReDoc:** `http://localhost:8000/api/redoc`
+
+### Health Endpoints
+
+- `GET /api/health` - Basic health check
+- `GET /api/ready` - Readiness check (database, providers)
 
 ## Provider Setup
 
@@ -403,9 +460,17 @@ Results are saved to the configured `output_dir`:
 
 ```
 backend/
-├── main.py                 # Entry point
+├── main.py                 # CLI entry point
+├── run_api.py              # API server entry point
 ├── pyproject.toml          # Dependencies
-├── config.example.yaml     # Example configuration
+├── config.example.yaml     # Example CLI configuration
+├── .env.example            # Example API configuration
+├── api/                    # FastAPI application
+│   ├── app.py              # Application factory
+│   ├── config.py           # API settings (pydantic-settings)
+│   ├── routes/             # API route modules
+│   │   └── health.py       # Health check endpoints
+│   └── middleware/         # Middleware modules (auth, etc.)
 ├── core/
 │   ├── config.py           # YAML config parsing
 │   ├── graph.py            # LangGraph state and flow
