@@ -4,6 +4,7 @@ from .anthropic import AnthropicProvider
 from .base import LLMProvider
 from .lm_studio import LMStudioProvider
 from .ollama import OllamaProvider
+from .openai import OpenAIProvider
 from .vllm import VLLMProvider
 
 
@@ -12,11 +13,12 @@ def get_providers() -> dict[str, LLMProvider]:
 
     Returns:
         Dictionary mapping provider type names to provider instances.
-        Keys are: "ollama", "vllm", "lm_studio", "anthropic"
+        Keys are: "ollama", "vllm", "lm_studio", "anthropic", "openai"
     """
     return {
         "ollama": OllamaProvider(),
         "vllm": VLLMProvider(),
         "lm_studio": LMStudioProvider(),
         "anthropic": AnthropicProvider(),
+        "openai": OpenAIProvider(),
     }

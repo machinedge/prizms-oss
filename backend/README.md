@@ -28,6 +28,7 @@ flowchart LR
         VllmPy[vllm.py]
         LmStudioPy[lm_studio.py]
         AnthropicPy[anthropic.py]
+        OpenAIPy[openai.py]
     end
     
     Factory --> BasePy
@@ -35,6 +36,7 @@ flowchart LR
     Factory --> VllmPy
     Factory --> LmStudioPy
     Factory --> AnthropicPy
+    Factory --> OpenAIPy
 ```
 
 ## Supported Providers
@@ -48,6 +50,7 @@ flowchart LR
 ### Cloud Providers
 
 - **Anthropic** - Claude models via Anthropic API (requires API key)
+- **OpenAI** - GPT models via OpenAI API (requires API key)
 
 Local providers use OpenAI-compatible APIs, allowing seamless switching between them. Cloud providers require API keys and incur usage charges.
 
@@ -122,6 +125,7 @@ Each model requires a `provider` field and the model identifier:
 | vLLM | `vllm` | `mistralai/Mistral-7B-Instruct-v0.2` |
 | LM Studio | `lm_studio` | `qwen/qwen3-4b` |
 | Anthropic | `anthropic` | `claude-sonnet-4-20250514`, `claude-3-5-haiku-20241022` |
+| OpenAI | `openai` | `gpt-4o`, `gpt-4o-mini`, `gpt-3.5-turbo` |
 
 ### Personality Definition
 
@@ -219,6 +223,35 @@ uv run python main.py --config config.yaml -r 5 "Your question here"
 
 > **Tip:** Use environment variables for API keys rather than hardcoding them in config files.
 
+### OpenAI GPT
+
+> **Note:** OpenAI is a cloud provider. Requires internet connection, API key, and usage charges apply.
+
+1. **Get API Key:** Sign up at [platform.openai.com](https://platform.openai.com)
+2. **Set Environment Variable:**
+   ```bash
+   export OPENAI_API_KEY=sk-...
+   ```
+3. **Configure in config.yaml:**
+   ```yaml
+   model_list:
+     - model_name: gpt-4o
+       litellm_params:
+         provider: openai
+         model: gpt-4o
+         api_key: ${OPENAI_API_KEY}
+   ```
+
+**Available Models:**
+| Model | Description |
+|-------|-------------|
+| `gpt-4o` | Latest multimodal model, recommended |
+| `gpt-4o-mini` | Faster, more economical |
+| `gpt-4-turbo` | Previous generation, still capable |
+| `gpt-3.5-turbo` | Fastest, most economical |
+
+> **Tip:** Use environment variables for API keys rather than hardcoding them in config files.
+
 ## Output
 
 Results are saved to the configured `output_dir`:
@@ -245,7 +278,8 @@ backend/
 │   ├── ollama.py           # Ollama provider
 │   ├── vllm.py             # vLLM provider
 │   ├── lm_studio.py        # LM Studio provider
-│   └── anthropic.py        # Anthropic Claude provider
+│   ├── anthropic.py        # Anthropic Claude provider
+│   └── openai.py           # OpenAI GPT provider
 └── prompts/                # Default personality prompts
 ```
 
