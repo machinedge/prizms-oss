@@ -222,6 +222,65 @@ When running in debug mode (`PRIZMS_DEBUG=true`), API documentation is available
 
 - `GET /api/users/me` - Get current user profile (requires authentication)
 
+### Debate Endpoints
+
+All debate endpoints require authentication.
+
+```mermaid
+flowchart TD
+    subgraph Routes["API Routes"]
+        POST[POST /api/debates]
+        LIST[GET /api/debates]
+        GET[GET /api/debates/id]
+    end
+    
+    subgraph Auth["Auth Middleware"]
+        JWT[get_current_user]
+    end
+    
+    subgraph Services["Services Layer"]
+        DS[DebateService]
+        DB[get_supabase_client]
+    end
+    
+    subgraph Supabase["Supabase Postgres"]
+        DEBATES[(debates)]
+        ROUNDS[(debate_rounds)]
+        RESPONSES[(debate_responses)]
+        SYNTHESIS[(debate_synthesis)]
+    end
+    
+    POST --> JWT --> DS --> DB --> DEBATES
+    LIST --> JWT --> DS --> DB --> DEBATES
+    GET --> JWT --> DS --> DB --> DEBATES
+    DB --> ROUNDS
+    DB --> RESPONSES
+    DB --> SYNTHESIS
+```
+
+- `POST /api/debates` - Create a new debate
+
+  Request body:
+  ```json
+  {
+    "question": "What is the meaning of life?",
+    "provider": "anthropic",
+    "model": "claude-3-sonnet",
+    "settings": {
+      "max_rounds": 3,
+      "temperature": 0.7
+    }
+  }
+  ```
+
+- `GET /api/debates` - List user's debates (paginated)
+
+  Query parameters:
+  - `page` (default: 1) - Page number
+  - `page_size` (default: 20, max: 100) - Items per page
+
+- `GET /api/debates/{id}` - Get a specific debate with all rounds and responses
+
 ## Authentication
 
 The API uses Supabase JWT tokens for authentication.
@@ -513,17 +572,24 @@ backend/
 ├── pyproject.toml          # Dependencies
 ├── config.example.yaml     # Example CLI configuration
 ├── .env.example            # Example API configuration
+├── migrations/             # SQL migration files for Supabase
+│   └── 001_create_debate_tables.sql
 ├── api/                    # FastAPI application
 │   ├── app.py              # Application factory
 │   ├── config.py           # API settings (pydantic-settings)
 │   ├── routes/             # API route modules
 │   │   ├── health.py       # Health check endpoints
-│   │   └── users.py        # User profile endpoints
+│   │   ├── users.py        # User profile endpoints
+│   │   └── debates.py      # Debate CRUD endpoints
 │   ├── middleware/         # Middleware modules
 │   │   └── auth.py         # JWT authentication middleware
-│   └── models/             # Pydantic models
-│       ├── user.py         # User and token models
-│       └── errors.py       # Error response models
+│   ├── models/             # Pydantic models
+│   │   ├── user.py         # User and token models
+│   │   ├── debate.py       # Debate request/response models
+│   │   └── errors.py       # Error response models
+│   └── services/           # Business logic services
+│       ├── database.py     # Supabase client factory
+│       └── debates.py      # Debate service (CRUD operations)
 ├── core/
 │   ├── config.py           # YAML config parsing
 │   ├── graph.py            # LangGraph state and flow
