@@ -3,12 +3,7 @@
 from .anthropic import AnthropicProvider
 from .base import LLMProvider
 from .gemini import GeminiProvider
-from .grok import GrokProvider
-from .lm_studio import LMStudioProvider
-from .ollama import OllamaProvider
-from .openai import OpenAIProvider
-from .openrouter import OpenRouterProvider
-from .vllm import VLLMProvider
+from .openai_compatible import OpenAICompatibleProvider, PROVIDER_CONFIGS
 
 
 def get_providers() -> dict[str, LLMProvider]:
@@ -18,13 +13,13 @@ def get_providers() -> dict[str, LLMProvider]:
         Dictionary mapping provider type names to provider instances.
         Keys are: "ollama", "vllm", "lm_studio", "anthropic", "openai", "gemini", "grok", "openrouter"
     """
-    return {
-        "ollama": OllamaProvider(),
-        "vllm": VLLMProvider(),
-        "lm_studio": LMStudioProvider(),
-        "anthropic": AnthropicProvider(),
-        "openai": OpenAIProvider(),
-        "gemini": GeminiProvider(),
-        "grok": GrokProvider(),
-        "openrouter": OpenRouterProvider(),
+    # Create OpenAI-compatible providers from the config registry
+    providers: dict[str, LLMProvider] = {
+        name: OpenAICompatibleProvider(name) for name in PROVIDER_CONFIGS
     }
+
+    # Add providers with native clients
+    providers["anthropic"] = AnthropicProvider()
+    providers["gemini"] = GeminiProvider()
+
+    return providers

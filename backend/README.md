@@ -24,24 +24,17 @@ flowchart LR
     subgraph Providers [providers module]
         Factory[factory.py]
         BasePy[base.py]
-        OllamaPy[ollama.py]
-        VllmPy[vllm.py]
-        LmStudioPy[lm_studio.py]
+        OpenAICompatPy[openai_compatible.py]
         AnthropicPy[anthropic.py]
-        OpenAIPy[openai.py]
         GeminiPy[gemini.py]
-        GrokPy[grok.py]
-        OpenRouterPy[openrouter.py]
     end
     
     Factory --> BasePy
-    Factory --> OllamaPy
-    Factory --> VllmPy
-    Factory --> LmStudioPy
+    Factory --> OpenAICompatPy
     Factory --> AnthropicPy
-    Factory --> OpenAIPy
     Factory --> GeminiPy
-    Factory --> GrokPy
+    
+    OpenAICompatPy -.-> |"handles"| ProviderList["ollama, vllm, lm_studio,\nopenai, grok, openrouter"]
 ```
 
 ## Supported Providers
@@ -389,8 +382,11 @@ Integration tests are automatically skipped if their corresponding API key is no
 ### Run Specific Provider Tests
 
 ```bash
-# Test a specific provider
-uv run pytest tests/providers/test_openrouter.py -v
+# Test OpenAI-compatible providers (ollama, vllm, lm_studio, openai, grok, openrouter)
+uv run pytest tests/providers/test_openai_compatible.py -v
+
+# Test Anthropic provider
+uv run pytest tests/providers/test_anthropic.py -v
 
 # Run only integration tests (requires API keys)
 source test-keys.env && uv run pytest -k "Integration" -v
@@ -417,16 +413,12 @@ backend/
 │   ├── display.py          # Rich terminal UI
 │   └── output.py           # File output
 ├── providers/
-│   ├── base.py             # Abstract provider class
+│   ├── base.py             # Abstract provider class + ModelConfig
 │   ├── factory.py          # Provider factory
-│   ├── ollama.py           # Ollama provider
-│   ├── vllm.py             # vLLM provider
-│   ├── lm_studio.py        # LM Studio provider
-│   ├── anthropic.py        # Anthropic Claude provider
-│   ├── openai.py           # OpenAI GPT provider
-│   ├── gemini.py           # Google Gemini provider
-│   ├── grok.py             # xAI Grok provider
-│   └── openrouter.py       # OpenRouter unified provider
+│   ├── openai_compatible.py  # Unified provider for OpenAI-compatible APIs
+│   │                         # (ollama, vllm, lm_studio, openai, grok, openrouter)
+│   ├── anthropic.py        # Anthropic Claude provider (native client)
+│   └── gemini.py           # Google Gemini provider (native client)
 └── prompts/                # Default personality prompts
 ```
 
