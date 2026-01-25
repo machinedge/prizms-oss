@@ -31,6 +31,7 @@ flowchart LR
         OpenAIPy[openai.py]
         GeminiPy[gemini.py]
         GrokPy[grok.py]
+        OpenRouterPy[openrouter.py]
     end
     
     Factory --> BasePy
@@ -57,6 +58,7 @@ flowchart LR
 - **OpenAI** - GPT models via OpenAI API (requires API key)
 - **Google Gemini** - Gemini models via Google AI API (requires API key)
 - **xAI Grok** - Grok models via xAI API (requires API key)
+- **OpenRouter** - Unified access to 100+ models via OpenRouter API (requires API key)
 
 Local providers use OpenAI-compatible APIs, allowing seamless switching between them. Cloud providers require API keys and incur usage charges.
 
@@ -134,6 +136,7 @@ Each model requires a `provider` field and the model identifier:
 | OpenAI | `openai` | `gpt-4o`, `gpt-4o-mini`, `gpt-3.5-turbo` |
 | Gemini | `gemini` | `gemini-2.0-flash`, `gemini-2.0-flash-lite`, `gemini-1.5-pro` |
 | xAI Grok | `grok` | `grok-3`, `grok-3-mini` |
+| OpenRouter | `openrouter` | `anthropic/claude-3-opus`, `openai/gpt-4-turbo`, `meta-llama/llama-3.1-70b-instruct` |
 
 ### Personality Definition
 
@@ -315,6 +318,42 @@ uv run python main.py --config config.yaml -r 5 "Your question here"
 
 > **Tip:** Use environment variables for API keys rather than hardcoding them in config files.
 
+### OpenRouter (Unified Access)
+
+> **Note:** OpenRouter is a cloud provider. Requires internet connection, API key, and usage charges apply.
+
+OpenRouter provides unified access to 100+ models from various providers through a single API.
+
+1. **Get API Key:** Sign up at [openrouter.ai](https://openrouter.ai)
+2. **Set Environment Variable:**
+   ```bash
+   export OPENROUTER_API_KEY=sk-or-...
+   ```
+3. **Configure in config.yaml:**
+   ```yaml
+   model_list:
+     - model_name: claude-via-openrouter
+       litellm_params:
+         provider: openrouter
+         model: anthropic/claude-3-opus
+         api_key: ${OPENROUTER_API_KEY}
+   ```
+
+**Popular Models via OpenRouter:**
+| Model | Description |
+|-------|-------------|
+| `anthropic/claude-3-opus` | Claude 3 Opus |
+| `anthropic/claude-3.5-sonnet` | Claude 3.5 Sonnet |
+| `openai/gpt-4-turbo` | GPT-4 Turbo |
+| `openai/gpt-4o` | GPT-4o |
+| `meta-llama/llama-3.1-70b-instruct` | Llama 3.1 70B |
+| `mistralai/mistral-large` | Mistral Large |
+| `google/gemini-pro-1.5` | Gemini Pro 1.5 |
+
+See [openrouter.ai/models](https://openrouter.ai/models) for the full list.
+
+> **Tip:** Use environment variables for API keys rather than hardcoding them in config files.
+
 ## Output
 
 Results are saved to the configured `output_dir`:
@@ -344,7 +383,8 @@ backend/
 │   ├── anthropic.py        # Anthropic Claude provider
 │   ├── openai.py           # OpenAI GPT provider
 │   ├── gemini.py           # Google Gemini provider
-│   └── grok.py             # xAI Grok provider
+│   ├── grok.py             # xAI Grok provider
+│   └── openrouter.py       # OpenRouter unified provider
 └── prompts/                # Default personality prompts
 ```
 

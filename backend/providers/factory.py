@@ -7,6 +7,7 @@ from .grok import GrokProvider
 from .lm_studio import LMStudioProvider
 from .ollama import OllamaProvider
 from .openai import OpenAIProvider
+from .openrouter import OpenRouterProvider
 from .vllm import VLLMProvider
 
 
@@ -15,7 +16,7 @@ def get_providers() -> dict[str, LLMProvider]:
 
     Returns:
         Dictionary mapping provider type names to provider instances.
-        Keys are: "ollama", "vllm", "lm_studio", "anthropic", "openai", "gemini", "grok"
+        Keys are: "ollama", "vllm", "lm_studio", "anthropic", "openai", "gemini", "grok", "openrouter"
     """
     return {
         "ollama": OllamaProvider(),
@@ -25,4 +26,5 @@ def get_providers() -> dict[str, LLMProvider]:
         "openai": OpenAIProvider(),
         "gemini": GeminiProvider(),
         "grok": GrokProvider(),
+        "openrouter": OpenRouterProvider(),
     }
