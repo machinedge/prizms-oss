@@ -30,6 +30,7 @@ flowchart LR
         AnthropicPy[anthropic.py]
         OpenAIPy[openai.py]
         GeminiPy[gemini.py]
+        GrokPy[grok.py]
     end
     
     Factory --> BasePy
@@ -39,6 +40,7 @@ flowchart LR
     Factory --> AnthropicPy
     Factory --> OpenAIPy
     Factory --> GeminiPy
+    Factory --> GrokPy
 ```
 
 ## Supported Providers
@@ -54,6 +56,7 @@ flowchart LR
 - **Anthropic** - Claude models via Anthropic API (requires API key)
 - **OpenAI** - GPT models via OpenAI API (requires API key)
 - **Google Gemini** - Gemini models via Google AI API (requires API key)
+- **xAI Grok** - Grok models via xAI API (requires API key)
 
 Local providers use OpenAI-compatible APIs, allowing seamless switching between them. Cloud providers require API keys and incur usage charges.
 
@@ -130,6 +133,7 @@ Each model requires a `provider` field and the model identifier:
 | Anthropic | `anthropic` | `claude-sonnet-4-20250514`, `claude-3-5-haiku-20241022` |
 | OpenAI | `openai` | `gpt-4o`, `gpt-4o-mini`, `gpt-3.5-turbo` |
 | Gemini | `gemini` | `gemini-2.0-flash`, `gemini-2.0-flash-lite`, `gemini-1.5-pro` |
+| xAI Grok | `grok` | `grok-3`, `grok-3-mini` |
 
 ### Personality Definition
 
@@ -284,6 +288,33 @@ uv run python main.py --config config.yaml -r 5 "Your question here"
 
 > **Tip:** Use environment variables for API keys rather than hardcoding them in config files.
 
+### xAI Grok
+
+> **Note:** xAI Grok is a cloud provider. Requires internet connection, API key, and usage charges apply.
+
+1. **Get API Key:** Sign up at [console.x.ai](https://console.x.ai)
+2. **Set Environment Variable:**
+   ```bash
+   export XAI_API_KEY=xai-...
+   ```
+3. **Configure in config.yaml:**
+   ```yaml
+   model_list:
+     - model_name: grok-3
+       litellm_params:
+         provider: grok
+         model: grok-3
+         api_key: ${XAI_API_KEY}
+   ```
+
+**Available Models:**
+| Model | Description |
+|-------|-------------|
+| `grok-3` | Latest Grok 3 model, recommended |
+| `grok-3-mini` | Smaller, faster Grok 3 model |
+
+> **Tip:** Use environment variables for API keys rather than hardcoding them in config files.
+
 ## Output
 
 Results are saved to the configured `output_dir`:
@@ -312,7 +343,8 @@ backend/
 │   ├── lm_studio.py        # LM Studio provider
 │   ├── anthropic.py        # Anthropic Claude provider
 │   ├── openai.py           # OpenAI GPT provider
-│   └── gemini.py           # Google Gemini provider
+│   ├── gemini.py           # Google Gemini provider
+│   └── grok.py             # xAI Grok provider
 └── prompts/                # Default personality prompts
 ```
 

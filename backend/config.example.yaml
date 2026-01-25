@@ -74,6 +74,15 @@ model_list:
       model: claude-3-5-haiku-20241022
       api_key: ${ANTHROPIC_API_KEY}
 
+  # xAI Grok models - Cloud API (requires API key)
+  # Get your API key at: https://console.x.ai
+  # Set via environment variable or directly in config (not recommended for production)
+  - model_name: grok-3
+    litellm_params:
+      provider: grok
+      model: grok-3
+      api_key: ${XAI_API_KEY}  # Use environment variable
+
 # Personality definitions
 # Each personality references a model by model_name and points to a prompt file.
 # All personalities must be explicitly listed here (no auto-discovery).
