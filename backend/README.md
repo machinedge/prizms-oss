@@ -218,6 +218,54 @@ When running in debug mode (`PRIZMS_DEBUG=true`), API documentation is available
 - `GET /api/health` - Basic health check
 - `GET /api/ready` - Readiness check (database, providers)
 
+### User Endpoints
+
+- `GET /api/users/me` - Get current user profile (requires authentication)
+
+## Authentication
+
+The API uses Supabase JWT tokens for authentication.
+
+### Configuration
+
+Set the following in your `.env`:
+
+```bash
+PRIZMS_SUPABASE_JWT_SECRET=your-jwt-secret-from-supabase
+```
+
+Find your JWT secret in Supabase Dashboard → Settings → API → JWT Secret.
+
+### Using Authentication
+
+Protected endpoints require a Bearer token in the `Authorization` header:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:8000/api/users/me
+```
+
+### Getting a Token
+
+1. Users authenticate via the frontend using Supabase Auth
+2. After login, Supabase provides a JWT access token
+3. Include this token in API requests to protected endpoints
+
+### Error Responses
+
+Authentication errors return `401 Unauthorized` with:
+
+```json
+{
+  "detail": "Token has expired"
+}
+```
+
+Common errors:
+- `"Missing authorization header"` - No Bearer token provided
+- `"Token has expired"` - JWT has expired, user needs to re-authenticate
+- `"Invalid token: ..."` - Malformed or invalid JWT
+- `"Server authentication not configured"` - Missing `PRIZMS_SUPABASE_JWT_SECRET`
+
 ## Provider Setup
 
 ### Ollama
@@ -469,8 +517,13 @@ backend/
 │   ├── app.py              # Application factory
 │   ├── config.py           # API settings (pydantic-settings)
 │   ├── routes/             # API route modules
-│   │   └── health.py       # Health check endpoints
-│   └── middleware/         # Middleware modules (auth, etc.)
+│   │   ├── health.py       # Health check endpoints
+│   │   └── users.py        # User profile endpoints
+│   ├── middleware/         # Middleware modules
+│   │   └── auth.py         # JWT authentication middleware
+│   └── models/             # Pydantic models
+│       ├── user.py         # User and token models
+│       └── errors.py       # Error response models
 ├── core/
 │   ├── config.py           # YAML config parsing
 │   ├── graph.py            # LangGraph state and flow
