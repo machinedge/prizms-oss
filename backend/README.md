@@ -29,6 +29,7 @@ flowchart LR
         LmStudioPy[lm_studio.py]
         AnthropicPy[anthropic.py]
         OpenAIPy[openai.py]
+        GeminiPy[gemini.py]
     end
     
     Factory --> BasePy
@@ -37,6 +38,7 @@ flowchart LR
     Factory --> LmStudioPy
     Factory --> AnthropicPy
     Factory --> OpenAIPy
+    Factory --> GeminiPy
 ```
 
 ## Supported Providers
@@ -51,6 +53,7 @@ flowchart LR
 
 - **Anthropic** - Claude models via Anthropic API (requires API key)
 - **OpenAI** - GPT models via OpenAI API (requires API key)
+- **Google Gemini** - Gemini models via Google AI API (requires API key)
 
 Local providers use OpenAI-compatible APIs, allowing seamless switching between them. Cloud providers require API keys and incur usage charges.
 
@@ -126,6 +129,7 @@ Each model requires a `provider` field and the model identifier:
 | LM Studio | `lm_studio` | `qwen/qwen3-4b` |
 | Anthropic | `anthropic` | `claude-sonnet-4-20250514`, `claude-3-5-haiku-20241022` |
 | OpenAI | `openai` | `gpt-4o`, `gpt-4o-mini`, `gpt-3.5-turbo` |
+| Gemini | `gemini` | `gemini-2.0-flash`, `gemini-2.0-flash-lite`, `gemini-1.5-pro` |
 
 ### Personality Definition
 
@@ -252,6 +256,34 @@ uv run python main.py --config config.yaml -r 5 "Your question here"
 
 > **Tip:** Use environment variables for API keys rather than hardcoding them in config files.
 
+### Google Gemini
+
+> **Note:** Google Gemini is a cloud provider. Requires internet connection, API key, and usage charges apply.
+
+1. **Get API Key:** Sign up at [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. **Set Environment Variable:**
+   ```bash
+   export GOOGLE_API_KEY=AI...
+   ```
+3. **Configure in config.yaml:**
+   ```yaml
+   model_list:
+     - model_name: gemini-2.0-flash
+       litellm_params:
+         provider: gemini
+         model: gemini-2.0-flash
+         api_key: ${GOOGLE_API_KEY}
+   ```
+
+**Available Models:**
+| Model | Description |
+|-------|-------------|
+| `gemini-2.0-flash` | Fast and efficient, recommended |
+| `gemini-2.0-flash-lite` | Fastest, most economical |
+| `gemini-1.5-pro` | Previous generation, most capable |
+
+> **Tip:** Use environment variables for API keys rather than hardcoding them in config files.
+
 ## Output
 
 Results are saved to the configured `output_dir`:
@@ -279,7 +311,8 @@ backend/
 │   ├── vllm.py             # vLLM provider
 │   ├── lm_studio.py        # LM Studio provider
 │   ├── anthropic.py        # Anthropic Claude provider
-│   └── openai.py           # OpenAI GPT provider
+│   ├── openai.py           # OpenAI GPT provider
+│   └── gemini.py           # Google Gemini provider
 └── prompts/                # Default personality prompts
 ```
 
