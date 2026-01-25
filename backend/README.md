@@ -354,6 +354,48 @@ See [openrouter.ai/models](https://openrouter.ai/models) for the full list.
 
 > **Tip:** Use environment variables for API keys rather than hardcoding them in config files.
 
+## Testing
+
+### Run Unit Tests Only
+
+Unit tests run without any API keys and use mocking:
+
+```bash
+uv run pytest -v
+```
+
+### Run All Tests (Including Integration)
+
+Integration tests require API keys to verify real API connectivity. Create a `test-keys.env` file with your API keys:
+
+```bash
+# test-keys.env (do not commit to version control)
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+GOOGLE_API_KEY=AI...
+XAI_API_KEY=xai-...
+OPENROUTER_API_KEY=sk-or-...
+```
+
+Then run all tests with the keys loaded:
+
+```bash
+# Load keys and run all tests
+source test-keys.env && uv run pytest -v
+```
+
+Integration tests are automatically skipped if their corresponding API key is not set.
+
+### Run Specific Provider Tests
+
+```bash
+# Test a specific provider
+uv run pytest tests/providers/test_openrouter.py -v
+
+# Run only integration tests (requires API keys)
+source test-keys.env && uv run pytest -k "Integration" -v
+```
+
 ## Output
 
 Results are saved to the configured `output_dir`:
