@@ -27,21 +27,29 @@ flowchart LR
         OllamaPy[ollama.py]
         VllmPy[vllm.py]
         LmStudioPy[lm_studio.py]
+        AnthropicPy[anthropic.py]
     end
     
     Factory --> BasePy
     Factory --> OllamaPy
     Factory --> VllmPy
     Factory --> LmStudioPy
+    Factory --> AnthropicPy
 ```
 
 ## Supported Providers
+
+### Local Providers
 
 - **Ollama** - Local LLM server (default: `http://localhost:11434/v1`)
 - **vLLM** - High-performance inference server (default: `http://localhost:8000/v1`)
 - **LM Studio** - Local LLM GUI application (default: `http://localhost:1234/v1`)
 
-All providers use OpenAI-compatible APIs, allowing seamless switching between them.
+### Cloud Providers
+
+- **Anthropic** - Claude models via Anthropic API (requires API key)
+
+Local providers use OpenAI-compatible APIs, allowing seamless switching between them. Cloud providers require API keys and incur usage charges.
 
 ## Prerequisites
 
@@ -106,13 +114,14 @@ personalities:
 
 ### Model Definition
 
-Models use the LiteLLM `provider/model_id` format:
+Each model requires a `provider` field and the model identifier:
 
-| Provider | Format | Example |
-|----------|--------|---------|
-| Ollama | `ollama/<model>` | `ollama/llama3`, `ollama/llama3:70b` |
-| vLLM | `vllm/<model>` | `vllm/mistral-7b`, `vllm/llama-2-13b` |
-| LM Studio | `lm_studio/<model>` | `lm_studio/qwen3-4b` |
+| Provider | Provider Field | Model ID Example |
+|----------|----------------|------------------|
+| Ollama | `ollama` | `llama3`, `llama3:70b` |
+| vLLM | `vllm` | `mistralai/Mistral-7B-Instruct-v0.2` |
+| LM Studio | `lm_studio` | `qwen/qwen3-4b` |
+| Anthropic | `anthropic` | `claude-sonnet-4-20250514`, `claude-3-5-haiku-20241022` |
 
 ### Personality Definition
 
@@ -182,6 +191,34 @@ uv run python main.py --config config.yaml -r 5 "Your question here"
 
 > **Tip:** The server runs on `localhost:1234` by default. Ensure the server is started before running Prizms.
 
+### Anthropic Claude
+
+> **Note:** Anthropic is a cloud provider. Requires internet connection, API key, and usage charges apply.
+
+1. **Get API Key:** Sign up at [console.anthropic.com](https://console.anthropic.com)
+2. **Set Environment Variable:**
+   ```bash
+   export ANTHROPIC_API_KEY=sk-ant-...
+   ```
+3. **Configure in config.yaml:**
+   ```yaml
+   model_list:
+     - model_name: claude-sonnet
+       litellm_params:
+         provider: anthropic
+         model: claude-sonnet-4-20250514
+         api_key: ${ANTHROPIC_API_KEY}
+   ```
+
+**Available Models:**
+| Model | Description |
+|-------|-------------|
+| `claude-sonnet-4-20250514` | Balanced speed and capability |
+| `claude-opus-4-20250514` | Most capable, slower |
+| `claude-3-5-haiku-20241022` | Fastest, most economical |
+
+> **Tip:** Use environment variables for API keys rather than hardcoding them in config files.
+
 ## Output
 
 Results are saved to the configured `output_dir`:
@@ -207,7 +244,8 @@ backend/
 │   ├── factory.py          # Provider factory
 │   ├── ollama.py           # Ollama provider
 │   ├── vllm.py             # vLLM provider
-│   └── lm_studio.py        # LM Studio provider
+│   ├── lm_studio.py        # LM Studio provider
+│   └── anthropic.py        # Anthropic Claude provider
 └── prompts/                # Default personality prompts
 ```
 

@@ -23,7 +23,7 @@ debate_settings:
 
 # LiteLLM-style model definitions
 # Each entry defines a model with a friendly name and provider-specific parameters.
-# The provider field specifies the backend: ollama, vllm, or lm_studio
+# The provider field specifies the backend: ollama, vllm, lm_studio, or anthropic
 # The model field is the model identifier expected by that provider.
 model_list:
   # Ollama models - Default URL: http://localhost:11434/v1
@@ -58,6 +58,21 @@ model_list:
       model: qwen/qwen3-4b
       api_base: http://localhost:1234/v1
       api_key: ""  # Not needed for local LM Studio
+
+  # Anthropic Claude models - Cloud API (requires API key)
+  # Get your API key at: https://console.anthropic.com
+  # Set via environment variable or directly in config (not recommended for production)
+  - model_name: claude-sonnet
+    litellm_params:
+      provider: anthropic
+      model: claude-sonnet-4-20250514
+      api_key: ${ANTHROPIC_API_KEY}  # Use environment variable
+
+  - model_name: claude-haiku
+    litellm_params:
+      provider: anthropic
+      model: claude-3-5-haiku-20241022
+      api_key: ${ANTHROPIC_API_KEY}
 
 # Personality definitions
 # Each personality references a model by model_name and points to a prompt file.
