@@ -37,6 +37,76 @@ flowchart LR
     OpenAICompatPy -.-> |"handles"| ProviderList["ollama, vllm, lm_studio,\nopenai, grok, openrouter"]
 ```
 
+## Modular Architecture
+
+The backend follows a **modular monolith** pattern - clean module boundaries with interface-based communication, designed for easy future microservices extraction if needed.
+
+### Architecture Overview
+
+```mermaid
+graph TB
+    subgraph api_layer [API Layer]
+        App[FastAPI App]
+        Deps[dependencies.py]
+    end
+
+    subgraph modules_layer [Feature Modules]
+        Auth[auth/]
+        Billing[billing/]
+        Debates[debates/]
+        Usage[usage/]
+    end
+
+    subgraph shared_layer [Shared Infrastructure]
+        Config[config.py]
+        Database[database.py]
+        Exceptions[exceptions.py]
+    end
+
+    subgraph existing [Existing Code]
+        Core[core/]
+        Providers[providers/]
+    end
+
+    App --> Deps
+    Deps --> Auth
+    Deps --> Billing
+    Deps --> Debates
+    Deps --> Usage
+
+    Auth --> Config
+    Auth --> Database
+    Auth --> Exceptions
+
+    Billing --> Config
+    Billing --> Database
+    Billing --> Exceptions
+
+    Debates --> Config
+    Debates --> Database
+    Debates --> Exceptions
+    Debates --> Core
+    Debates --> Providers
+
+    Usage --> Config
+    Usage --> Database
+    Usage --> Exceptions
+```
+
+### Layers
+
+- **API Layer** (`api/`): FastAPI app composition and dependency injection
+- **Feature Modules** (`modules/`): Self-contained business domains (auth, billing, debates, usage)
+- **Shared Infrastructure** (`shared/`): Cross-cutting concerns (config, database, exceptions)
+- **Existing Code** (`core/`, `providers/`): Debate engine and LLM providers
+
+### Key Principles
+
+1. Modules communicate only through interfaces (Protocol classes)
+2. Each module owns its own models and business logic
+3. Cross-module dependencies are injected via the ServiceContainer
+4. Shared infrastructure is limited to truly cross-cutting concerns
+
 ## Supported Providers
 
 ### Local Providers
@@ -368,7 +438,19 @@ OPENAI_API_KEY=sk-...
 GOOGLE_API_KEY=AI...
 XAI_API_KEY=xai-...
 OPENROUTER_API_KEY=sk-or-...
+
+# Supabase (for database integration tests)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
+
+**Getting Supabase Credentials:**
+1. Create a project at [supabase.com](https://supabase.com)
+2. Go to **Project Settings** → **API**
+3. Copy the **Project URL** → `SUPABASE_URL`
+4. Copy the **service_role** key (under "Project API keys") → `SUPABASE_SERVICE_ROLE_KEY`
+
+> **Warning:** The service_role key bypasses Row Level Security. Never expose it in client-side code.
 
 Then run all tests with the keys loaded:
 
@@ -377,7 +459,7 @@ Then run all tests with the keys loaded:
 source test-keys.env && uv run pytest -v
 ```
 
-Integration tests are automatically skipped if their corresponding API key is not set.
+Integration tests are automatically skipped if their corresponding API key/credential is not set.
 
 ### Run Specific Provider Tests
 
@@ -406,13 +488,25 @@ backend/
 ├── main.py                 # Entry point
 ├── pyproject.toml          # Dependencies
 ├── config.example.yaml     # Example configuration
-├── core/
+├── api/                    # FastAPI application layer
+│   ├── __init__.py
+│   └── dependencies.py     # Dependency injection setup
+├── modules/                # Feature modules (modular monolith)
+│   ├── auth/               # Authentication module
+│   ├── billing/            # Billing & credits module
+│   ├── debates/            # Debate orchestration module
+│   └── usage/              # Usage tracking module
+├── shared/                 # Shared infrastructure
+│   ├── config.py           # Pydantic settings (env vars)
+│   ├── database.py         # Supabase client factory
+│   └── exceptions.py       # Base exception classes
+├── core/                   # Debate engine
 │   ├── config.py           # YAML config parsing
 │   ├── graph.py            # LangGraph state and flow
 │   ├── nodes.py            # Graph node functions
 │   ├── display.py          # Rich terminal UI
 │   └── output.py           # File output
-├── providers/
+├── providers/              # LLM providers
 │   ├── base.py             # Abstract provider class + ModelConfig
 │   ├── factory.py          # Provider factory
 │   ├── openai_compatible.py  # Unified provider for OpenAI-compatible APIs
