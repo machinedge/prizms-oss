@@ -107,6 +107,69 @@ graph TB
 3. Cross-module dependencies are injected via the ServiceContainer
 4. Shared infrastructure is limited to truly cross-cutting concerns
 
+### Pricing Architecture
+
+The usage module implements a **hybrid pricing system** for calculating LLM API costs:
+
+```mermaid
+flowchart LR
+    subgraph usage_module [Usage Module]
+        UsageService[UsageService]
+        IPricingProvider[IPricingProvider Protocol]
+    end
+    
+    subgraph pricing_providers [Pricing Providers]
+        HybridProvider[HybridPricingProvider]
+        OpenRouterProvider[OpenRouterPricingProvider]
+        StaticProvider[StaticPricingProvider]
+    end
+    
+    subgraph external [External Sources]
+        OpenRouterAPI["OpenRouter /api/v1/models"]
+        Supabase["Supabase (pricing table)"]
+    end
+    
+    UsageService --> IPricingProvider
+    HybridProvider --> OpenRouterProvider
+    HybridProvider --> StaticProvider
+    OpenRouterProvider --> OpenRouterAPI
+    StaticProvider --> Supabase
+```
+
+**Components:**
+
+| Component | Description |
+|-----------|-------------|
+| `IPricingProvider` | Protocol defining the pricing provider interface |
+| `HybridPricingProvider` | Default provider - tries dynamic pricing first, falls back to static |
+| `OpenRouterPricingProvider` | Fetches live pricing from OpenRouter API (requires API key) |
+| `StaticPricingProvider` | Uses injected pricing data (loaded from Supabase in production) |
+
+**How it works:**
+
+1. **Dynamic Pricing (OpenRouter)**: When `OPENROUTER_API_KEY` is configured, the system fetches current pricing from OpenRouter's `/api/v1/models` endpoint. OpenRouter aggregates 400+ models from 60+ providers with real-time pricing.
+
+2. **Static/Database Pricing**: Pricing data is injected into `StaticPricingProvider` at initialization. In production, this data is loaded from Supabase. For testing, test fixtures provide sample pricing data.
+
+3. **Caching**: OpenRouter pricing is cached for 1 hour to minimize API calls.
+
+4. **Default Fallback**: If no pricing is found for a model, a conservative default pricing is used.
+
+**Configuration:**
+
+```bash
+# Enable dynamic pricing by setting OpenRouter API key
+export OPENROUTER_API_KEY=sk-or-...
+```
+
+Without the API key, the system uses pricing data from Supabase (or defaults if not configured).
+
+**Adding New Providers:**
+
+1. Add pricing data to the Supabase `provider_pricing` table (Story 15)
+2. OpenRouter models are automatically discovered when the API key is configured
+3. For new dynamic pricing sources, implement `IPricingProvider` protocol
+
 ## Supported Providers
 
 ### Local Providers
