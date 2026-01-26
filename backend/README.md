@@ -342,6 +342,50 @@ When running in debug mode (`DEBUG=true`), API documentation is available at:
 | `GET /api/health` | Basic health check - returns `{"status": "healthy", "version": "0.1.0"}` |
 | `GET /api/ready` | Readiness check - returns status of database and providers |
 
+## Authentication
+
+The API uses Supabase JWT tokens for authentication. Users authenticate via Supabase Auth (signup, login, etc.) on the frontend, then include the JWT token in API requests.
+
+### Configuration
+
+Set the following in your `.env`:
+
+```bash
+SUPABASE_JWT_SECRET=your-jwt-secret-from-supabase
+```
+
+Find your JWT secret in Supabase Dashboard → Settings → API → JWT Secret.
+
+### Using Authentication
+
+Protected endpoints require a Bearer token in the Authorization header:
+
+```bash
+# Get your profile
+curl -H "Authorization: Bearer <token>" http://localhost:8000/api/users/me
+```
+
+### Protected Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/users/me` | Get the current user's profile |
+
+### Error Responses
+
+Authentication errors return HTTP 401 with:
+
+```json
+{
+  "detail": "Token has expired"
+}
+```
+
+Common error messages:
+- `"Missing authorization header"` - No Authorization header provided
+- `"Token has expired"` - JWT has expired, user needs to re-authenticate
+- `"Invalid token: ..."` - JWT is malformed or signature is invalid
+
 ## Provider Setup
 
 ### Ollama
@@ -606,9 +650,16 @@ backend/
 │   ├── app.py              # FastAPI application factory
 │   ├── config.py           # API configuration (re-exports shared config)
 │   ├── dependencies.py     # Dependency injection setup
+│   ├── middleware/         # API middleware
+│   │   ├── __init__.py
+│   │   └── auth.py         # JWT authentication middleware
+│   ├── models/             # API-specific models
+│   │   ├── __init__.py
+│   │   └── errors.py       # Error response models
 │   └── routes/             # API route handlers
 │       ├── __init__.py
-│       └── health.py       # Health check endpoints
+│       ├── health.py       # Health check endpoints
+│       └── users.py        # User profile endpoints
 ├── modules/                # Feature modules (modular monolith)
 │   ├── auth/               # Authentication module
 │   ├── billing/            # Billing & credits module
@@ -617,7 +668,8 @@ backend/
 ├── shared/                 # Shared infrastructure
 │   ├── config.py           # Pydantic settings (env vars)
 │   ├── database.py         # Supabase client factory
-│   └── exceptions.py       # Base exception classes
+│   ├── exceptions.py       # Base exception classes
+│   └── models.py           # Shared data models (AuthenticatedUser)
 ├── core/                   # Debate engine
 │   ├── config.py           # YAML config parsing
 │   ├── graph.py            # LangGraph state and flow

@@ -9,6 +9,17 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field, EmailStr
 
+# Re-export AuthenticatedUser from shared for backward compatibility
+from shared.models import AuthenticatedUser
+
+__all__ = [
+    "AuthenticatedUser",
+    "JWTPayload",
+    "UserProfile",
+    "TokenValidationRequest",
+    "TokenValidationResponse",
+]
+
 
 class JWTPayload(BaseModel):
     """
@@ -19,6 +30,7 @@ class JWTPayload(BaseModel):
 
     sub: str = Field(..., description="Subject (user ID)")
     email: Optional[str] = Field(None, description="User's email")
+    email_confirmed_at: Optional[str] = Field(None, description="Email confirmation time")
     exp: int = Field(..., description="Expiration timestamp")
     iat: int = Field(..., description="Issued at timestamp")
     aud: str = Field(default="authenticated", description="Audience")
@@ -27,21 +39,6 @@ class JWTPayload(BaseModel):
     # Supabase-specific claims
     app_metadata: dict = Field(default_factory=dict)
     user_metadata: dict = Field(default_factory=dict)
-
-
-class AuthenticatedUser(BaseModel):
-    """
-    Represents an authenticated user in the system.
-
-    This is the minimal user info needed for most operations.
-    It's extracted from the JWT and used throughout the request lifecycle.
-    """
-
-    id: str = Field(..., description="User ID (UUID from Supabase)")
-    email: str = Field(..., description="User's email address")
-    role: str = Field(default="user", description="User role")
-
-    model_config = {"frozen": True}  # Make immutable for safety
 
 
 class UserProfile(BaseModel):

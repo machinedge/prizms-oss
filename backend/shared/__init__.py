@@ -19,6 +19,7 @@ from .exceptions import (
     AuthorizationError,
     ExternalServiceError,
 )
+from .models import AuthenticatedUser
 
 __all__ = [
     "Settings",
@@ -32,4 +33,5 @@ __all__ = [
     "AuthenticationError",
     "AuthorizationError",
     "ExternalServiceError",
+    "AuthenticatedUser",
 ]

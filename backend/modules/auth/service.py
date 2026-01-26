@@ -1,18 +1,19 @@
 """
 Authentication service implementation.
 
-This is a stub implementation that will be completed in Story 12.
-It provides the basic structure and can be used for testing.
+Validates Supabase JWT tokens and provides user authentication.
 """
 
+from datetime import datetime, timezone
 from typing import Optional
 import jwt
 
 from shared.config import get_settings
 from shared.database import get_supabase_client
+from shared.models import AuthenticatedUser
 
 from .interfaces import IAuthService
-from .models import AuthenticatedUser, UserProfile, JWTPayload
+from .models import UserProfile, JWTPayload
 from .exceptions import (
     InvalidTokenError,
     ExpiredTokenError,
@@ -52,10 +53,18 @@ class AuthService(IAuthService):
 
             jwt_payload = JWTPayload(**payload)
 
+            # Determine if email is verified
+            email_verified = jwt_payload.email_confirmed_at is not None
+
+            # Convert iat timestamp to datetime for last_sign_in
+            last_sign_in = datetime.fromtimestamp(jwt_payload.iat, tz=timezone.utc)
+
             return AuthenticatedUser(
                 id=jwt_payload.sub,
                 email=jwt_payload.email or "",
-                role=jwt_payload.role,
+                email_verified=email_verified,
+                last_sign_in=last_sign_in,
+                role=jwt_payload.role if jwt_payload.role != "authenticated" else "user",
             )
 
         except jwt.ExpiredSignatureError:
@@ -98,3 +107,9 @@ def get_auth_service() -> AuthService:
     if _service_instance is None:
         _service_instance = AuthService()
     return _service_instance
+
+
+def reset_auth_service() -> None:
+    """Reset the auth service singleton (for testing)."""
+    global _service_instance
+    _service_instance = None
