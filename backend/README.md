@@ -511,6 +511,53 @@ See [openrouter.ai/models](https://openrouter.ai/models) for the full list.
 
 > **Tip:** Use environment variables for API keys rather than hardcoding them in config files.
 
+## Database Migrations
+
+Prizms uses Supabase (PostgreSQL) for data storage. Migrations are managed via SQL files in the `migrations/` directory.
+
+### Configuration
+
+Set the database connection string in your `.env`:
+
+```bash
+PRIZMS_SUPABASE_DB_URL=postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
+```
+
+Find this in Supabase Dashboard → Settings → Database → Connection string → URI.
+
+### Running Migrations
+
+```bash
+# Run all pending migrations
+uv run python run_migrations.py
+
+# Show migration status
+uv run python run_migrations.py --status
+
+# Preview what would run (dry run)
+uv run python run_migrations.py --dry-run
+
+# Force re-run a specific migration
+uv run python run_migrations.py --force 001
+```
+
+### Migration Files
+
+Migration files are SQL scripts in `migrations/` with numeric prefixes:
+
+```
+migrations/
+├── 001_create_debate_tables.sql
+├── 002_add_user_preferences.sql
+└── ...
+```
+
+The migration runner:
+- Tracks applied migrations in a `_migrations` table
+- Detects if migration content has changed since it was applied
+- Runs migrations in alphabetical order by filename
+- Rolls back on failure (per-migration transactions)
+
 ## Testing
 
 ### Run Unit Tests Only

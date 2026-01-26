@@ -33,6 +33,7 @@ class APISettings(BaseSettings):
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
     supabase_jwt_secret: str = ""
+    supabase_db_url: str = ""  # Direct PostgreSQL connection string
 
     # Provider API keys (server-side)
     anthropic_api_key: str = ""
