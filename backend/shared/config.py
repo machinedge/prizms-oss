@@ -28,6 +28,17 @@ class Settings(BaseSettings):
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
+    reload: bool = False
+
+    # CORS settings
+    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    cors_allow_credentials: bool = True
+    cors_allow_methods: list[str] = ["*"]
+    cors_allow_headers: list[str] = ["*"]
+
+    # Rate limiting
+    rate_limit_requests: int = 100
+    rate_limit_window: int = 60  # seconds
 
     # Supabase
     supabase_url: str = ""

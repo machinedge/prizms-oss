@@ -1,5 +1,9 @@
 """
-FastAPI application layer.
+Prizms API package.
 
-This package contains the FastAPI app composition and dependency injection.
+Provides the FastAPI application for the Prizms debate orchestration service.
 """
+
+from .app import app, create_app
+
+__all__ = ["app", "create_app"]

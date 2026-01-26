@@ -294,6 +294,54 @@ uv run python main.py --config config.yaml -r 5 "Your question here"
 | `-f, --file` | Read question from a .txt or .md file |
 | `-r, --max-rounds` | Override maximum debate rounds |
 
+## API Server
+
+Prizms includes a REST API for integration with web frontends.
+
+### Running the API
+
+```bash
+# Development mode (with auto-reload)
+uv run python run_api.py --reload
+
+# Production mode
+uv run python run_api.py
+
+# Custom host/port
+uv run python run_api.py --host 127.0.0.1 --port 3000
+```
+
+### Configuration
+
+Copy `.env.example` to `.env` and configure:
+
+```bash
+cp .env.example .env
+# Edit .env with your settings
+```
+
+Key environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `HOST` | Server host | `0.0.0.0` |
+| `PORT` | Server port | `8000` |
+| `DEBUG` | Enable debug mode (enables Swagger UI) | `false` |
+| `RELOAD` | Enable auto-reload | `false` |
+
+### API Documentation
+
+When running in debug mode (`DEBUG=true`), API documentation is available at:
+- Swagger UI: `http://localhost:8000/api/docs`
+- ReDoc: `http://localhost:8000/api/redoc`
+
+### Health Check Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/health` | Basic health check - returns `{"status": "healthy", "version": "0.1.0"}` |
+| `GET /api/ready` | Readiness check - returns status of database and providers |
+
 ## Provider Setup
 
 ### Ollama
@@ -548,12 +596,19 @@ Results are saved to the configured `output_dir`:
 
 ```
 backend/
-├── main.py                 # Entry point
+├── main.py                 # CLI entry point
+├── run_api.py              # API server runner
 ├── pyproject.toml          # Dependencies
-├── config.example.yaml     # Example configuration
+├── config.example.yaml     # Example YAML debate config
+├── .env.example            # Example environment variables
 ├── api/                    # FastAPI application layer
 │   ├── __init__.py
-│   └── dependencies.py     # Dependency injection setup
+│   ├── app.py              # FastAPI application factory
+│   ├── config.py           # API configuration (re-exports shared config)
+│   ├── dependencies.py     # Dependency injection setup
+│   └── routes/             # API route handlers
+│       ├── __init__.py
+│       └── health.py       # Health check endpoints
 ├── modules/                # Feature modules (modular monolith)
 │   ├── auth/               # Authentication module
 │   ├── billing/            # Billing & credits module
