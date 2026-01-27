@@ -20,6 +20,7 @@ from .exceptions import (
     ExternalServiceError,
 )
 from .models import AuthenticatedUser
+from .repository import BaseRepository
 
 __all__ = [
     "Settings",
@@ -34,4 +35,5 @@ __all__ = [
     "AuthorizationError",
     "ExternalServiceError",
     "AuthenticatedUser",
+    "BaseRepository",
 ]

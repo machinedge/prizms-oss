@@ -1,47 +1,44 @@
 """
-Debates service implementation with Supabase.
+Debates service implementation.
 
-Provides CRUD operations for debates with real database persistence.
-Streaming functionality will be completed in Story 14.
+Provides business logic for debate operations, delegating data access
+to the DebateRepository. Handles authorization checks and orchestration.
 """
 
 from typing import Optional, AsyncIterator, Any
-from datetime import datetime, timezone
 from decimal import Decimal
 
-from supabase import Client
-
 from .interfaces import IDebateService
+from .repository import DebateRepository
 from .models import (
     Debate,
-    DebateListItem,
     DebateListResponse,
     CreateDebateRequest,
     DebateEvent,
     DebateEventType,
     DebateStatus,
-    DebateRound,
-    DebateSettings,
     PersonalityResponse,
-    DebateSynthesis,
 )
 from .exceptions import DebateNotFoundError, DebateAccessDeniedError
 
 
 class DebateService(IDebateService):
     """
-    Debate service with Supabase backend.
+    Debate service with repository-based data access.
 
-    Implements IDebateService protocol with real database operations.
+    Implements IDebateService protocol with proper separation of concerns:
+    - Authorization checks (user ownership)
+    - Business logic (status validation, orchestration)
+    - Delegates data access to DebateRepository
     """
 
     def __init__(
         self,
-        supabase_client: Client,
+        repository: DebateRepository,
         auth: Any = None,     # IAuthService - injected
         usage: Any = None,    # IUsageService - injected
     ):
-        self._db = supabase_client
+        self._repository = repository
         self._auth = auth
         self._usage = usage
 
@@ -65,10 +62,7 @@ class DebateService(IDebateService):
             "total_cost": 0,
         }
 
-        result = self._db.table("debates").insert(data).execute()
-        debate_data = result.data[0]
-
-        return self._map_to_debate(debate_data)
+        return self._repository.create_debate(data)
 
     async def get_debate(
         self,
@@ -76,60 +70,16 @@ class DebateService(IDebateService):
         user_id: str,
     ) -> Optional[Debate]:
         """Get a debate by ID with all rounds and responses."""
-        # Get debate - using service role, so we need to check user_id manually
-        result = self._db.table("debates").select("*").eq("id", debate_id).execute()
+        debate = self._repository.get_debate_by_id(debate_id)
 
-        if not result.data:
+        if debate is None:
             return None
 
-        debate_data = result.data[0]
-
-        # Check ownership
-        if debate_data["user_id"] != user_id:
+        # Authorization check: verify ownership
+        if debate.user_id != user_id:
             raise DebateAccessDeniedError(debate_id, user_id)
 
-        # Get rounds with responses
-        rounds_result = self._db.table("debate_rounds").select(
-            "*, debate_responses(*)"
-        ).eq("debate_id", debate_id).order("round_number").execute()
-
-        rounds = []
-        for round_data in rounds_result.data:
-            responses = [
-                PersonalityResponse(
-                    personality_name=r["personality_name"],
-                    thinking_content=r.get("thinking_content"),
-                    answer_content=r.get("answer_content", ""),
-                    input_tokens=r.get("input_tokens", 0),
-                    output_tokens=r.get("output_tokens", 0),
-                    cost=Decimal(str(r.get("cost", 0))),
-                )
-                for r in round_data.get("debate_responses", [])
-            ]
-            rounds.append(DebateRound(
-                id=str(round_data["id"]),
-                debate_id=debate_id,
-                round_number=round_data["round_number"],
-                responses=responses,
-                created_at=round_data["created_at"],
-            ))
-
-        # Get synthesis if exists
-        synthesis = None
-        synth_result = self._db.table("debate_synthesis").select("*").eq("debate_id", debate_id).execute()
-        if synth_result.data:
-            synth_data = synth_result.data[0]
-            synthesis = DebateSynthesis(
-                id=str(synth_data["id"]),
-                debate_id=debate_id,
-                content=synth_data["content"],
-                input_tokens=synth_data.get("input_tokens", 0),
-                output_tokens=synth_data.get("output_tokens", 0),
-                cost=Decimal(str(synth_data.get("cost", 0))),
-                created_at=synth_data["created_at"],
-            )
-
-        return self._map_to_debate(debate_data, rounds, synthesis)
+        return debate
 
     async def list_debates(
         self,
@@ -139,46 +89,7 @@ class DebateService(IDebateService):
         status: Optional[DebateStatus] = None,
     ) -> DebateListResponse:
         """List debates for a user with pagination."""
-        offset = (page - 1) * page_size
-
-        # Build base query for counting
-        count_query = self._db.table("debates").select("*", count="exact").eq("user_id", user_id)
-        if status:
-            count_query = count_query.eq("status", status.value)
-
-        # Get total count
-        count_result = count_query.execute()
-        total = count_result.count or 0
-
-        # Build query for paginated results
-        query = self._db.table("debates").select("*").eq("user_id", user_id)
-        if status:
-            query = query.eq("status", status.value)
-
-        result = query.order("created_at", desc=True).range(offset, offset + page_size - 1).execute()
-
-        debates = [
-            DebateListItem(
-                id=str(d["id"]),
-                question=d["question"][:100] + "..." if len(d["question"]) > 100 else d["question"],
-                status=DebateStatus(d["status"]),
-                provider=d["provider"],
-                model=d["model"],
-                current_round=d["current_round"],
-                max_rounds=d["max_rounds"],
-                total_cost=Decimal(str(d.get("total_cost", 0))),
-                created_at=d["created_at"],
-            )
-            for d in result.data
-        ]
-
-        return DebateListResponse(
-            debates=debates,
-            total=total,
-            page=page,
-            page_size=page_size,
-            has_more=(offset + page_size) < total,
-        )
+        return self._repository.list_debates(user_id, page, page_size, status)
 
     async def start_debate_stream(
         self,
@@ -249,9 +160,7 @@ class DebateService(IDebateService):
         if debate is None:
             raise DebateNotFoundError(debate_id)
 
-        # Delete from database (CASCADE handles related records)
-        self._db.table("debates").delete().eq("id", debate_id).execute()
-        return True
+        return self._repository.delete(debate_id)
 
     async def update_debate_status(
         self,
@@ -261,23 +170,7 @@ class DebateService(IDebateService):
         error_message: Optional[str] = None,
     ) -> None:
         """Update debate status and optionally current round or error message."""
-        data: dict[str, Any] = {
-            "status": status.value,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        if current_round is not None:
-            data["current_round"] = current_round
-
-        if error_message is not None:
-            data["error_message"] = error_message
-
-        if status == DebateStatus.COMPLETED:
-            data["completed_at"] = datetime.now(timezone.utc).isoformat()
-        elif status == DebateStatus.ACTIVE:
-            data["started_at"] = datetime.now(timezone.utc).isoformat()
-
-        self._db.table("debates").update(data).eq("id", debate_id).execute()
+        self._repository.update_status(debate_id, status, current_round, error_message)
 
     async def update_debate_totals(
         self,
@@ -287,13 +180,7 @@ class DebateService(IDebateService):
         total_cost: Decimal,
     ) -> None:
         """Update debate token and cost totals."""
-        data = {
-            "total_input_tokens": total_input_tokens,
-            "total_output_tokens": total_output_tokens,
-            "total_cost": float(total_cost),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        self._db.table("debates").update(data).eq("id", debate_id).execute()
+        self._repository.update_totals(debate_id, total_input_tokens, total_output_tokens, total_cost)
 
     async def save_round(
         self,
@@ -306,12 +193,7 @@ class DebateService(IDebateService):
         Returns:
             The ID of the created round.
         """
-        data = {
-            "debate_id": debate_id,
-            "round_number": round_number,
-        }
-        result = self._db.table("debate_rounds").insert(data).execute()
-        return str(result.data[0]["id"])
+        return self._repository.save_round(debate_id, round_number)
 
     async def save_response(
         self,
@@ -324,17 +206,7 @@ class DebateService(IDebateService):
         Returns:
             The ID of the created response.
         """
-        data = {
-            "round_id": round_id,
-            "personality_name": response.personality_name,
-            "thinking_content": response.thinking_content,
-            "answer_content": response.answer_content,
-            "input_tokens": response.input_tokens,
-            "output_tokens": response.output_tokens,
-            "cost": float(response.cost),
-        }
-        result = self._db.table("debate_responses").insert(data).execute()
-        return str(result.data[0]["id"])
+        return self._repository.save_response(round_id, response)
 
     async def save_synthesis(
         self,
@@ -350,47 +222,7 @@ class DebateService(IDebateService):
         Returns:
             The ID of the created synthesis.
         """
-        data = {
-            "debate_id": debate_id,
-            "content": content,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "cost": float(cost),
-        }
-        result = self._db.table("debate_synthesis").insert(data).execute()
-        return str(result.data[0]["id"])
-
-    def _map_to_debate(
-        self,
-        data: dict,
-        rounds: Optional[list[DebateRound]] = None,
-        synthesis: Optional[DebateSynthesis] = None,
-    ) -> Debate:
-        """Map database row to Debate model."""
-        settings_data = data.get("settings", {})
-        settings = DebateSettings(**settings_data) if settings_data else DebateSettings()
-
-        return Debate(
-            id=str(data["id"]),
-            user_id=str(data["user_id"]),
-            question=data["question"],
-            status=DebateStatus(data["status"]),
-            provider=data["provider"],
-            model=data["model"],
-            settings=settings,
-            max_rounds=data["max_rounds"],
-            current_round=data["current_round"],
-            rounds=rounds or [],
-            synthesis=synthesis,
-            total_input_tokens=data.get("total_input_tokens", 0),
-            total_output_tokens=data.get("total_output_tokens", 0),
-            total_cost=Decimal(str(data.get("total_cost", 0))),
-            created_at=data["created_at"],
-            updated_at=data["updated_at"],
-            started_at=data.get("started_at"),
-            completed_at=data.get("completed_at"),
-            error_message=data.get("error_message"),
-        )
+        return self._repository.save_synthesis(debate_id, content, input_tokens, output_tokens, cost)
 
 
 # Module-level instance getter
@@ -401,9 +233,9 @@ def get_debate_service() -> DebateService:
     """Get the debate service singleton."""
     global _service_instance
     if _service_instance is None:
-        from shared.database import get_supabase_client
+        from .repository import get_debate_repository
         _service_instance = DebateService(
-            supabase_client=get_supabase_client(),
+            repository=get_debate_repository(),
         )
     return _service_instance
 

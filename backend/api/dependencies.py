@@ -76,11 +76,13 @@ class ServiceContainer:
     def debates(self) -> Any:  # TODO: Return type should be "IDebateService"
         """Get the debate service instance."""
         if self._debate_service is None:
+            from modules.debates.repository import DebateRepository
             from modules.debates.service import DebateService
             from shared.database import get_supabase_client
 
+            repository = DebateRepository(get_supabase_client())
             self._debate_service = DebateService(
-                supabase_client=get_supabase_client(),
+                repository=repository,
                 auth=None,   # Will be wired in future stories
                 usage=None,  # Will be wired in future stories
             )
