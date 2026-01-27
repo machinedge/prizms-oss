@@ -185,29 +185,41 @@ class DebateService(IDebateService):
         debate_id: str,
         user_id: str,
     ) -> AsyncIterator[DebateEvent]:
-        """Start debate and stream events."""
+        """
+        Start debate and stream events.
+
+        Validates debate ownership and state, then delegates to
+        DebateStreamAdapter for the actual execution.
+        """
+        from .stream_adapter import DebateStreamAdapter
+
         debate = await self.get_debate(debate_id, user_id)
 
         if debate is None:
-            raise DebateNotFoundError(debate_id)
+            yield DebateEvent(
+                type=DebateEventType.ERROR,
+                debate_id=debate_id,
+                error="Debate not found",
+            )
+            return
 
-        # Update status to active
-        await self.update_debate_status(debate_id, DebateStatus.ACTIVE)
+        if debate.status != DebateStatus.PENDING:
+            yield DebateEvent(
+                type=DebateEventType.ERROR,
+                debate_id=debate_id,
+                error=f"Debate already {debate.status.value}",
+            )
+            return
 
-        # Yield started event
-        yield DebateEvent(
-            type=DebateEventType.DEBATE_STARTED,
-            debate_id=debate_id,
+        # Create adapter and run
+        adapter = DebateStreamAdapter(
+            debate=debate,
+            user_id=user_id,
+            debate_service=self,
         )
 
-        # TODO: Implement actual debate execution in Story 14
-        # For now, just yield a completed event
-        await self.update_debate_status(debate_id, DebateStatus.COMPLETED)
-
-        yield DebateEvent(
-            type=DebateEventType.DEBATE_COMPLETED,
-            debate_id=debate_id,
-        )
+        async for event in adapter.run():
+            yield event
 
     async def cancel_debate(
         self,
@@ -246,8 +258,9 @@ class DebateService(IDebateService):
         debate_id: str,
         status: DebateStatus,
         current_round: Optional[int] = None,
+        error_message: Optional[str] = None,
     ) -> None:
-        """Update debate status and optionally current round."""
+        """Update debate status and optionally current round or error message."""
         data: dict[str, Any] = {
             "status": status.value,
             "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -256,12 +269,96 @@ class DebateService(IDebateService):
         if current_round is not None:
             data["current_round"] = current_round
 
+        if error_message is not None:
+            data["error_message"] = error_message
+
         if status == DebateStatus.COMPLETED:
             data["completed_at"] = datetime.now(timezone.utc).isoformat()
         elif status == DebateStatus.ACTIVE:
             data["started_at"] = datetime.now(timezone.utc).isoformat()
 
         self._db.table("debates").update(data).eq("id", debate_id).execute()
+
+    async def update_debate_totals(
+        self,
+        debate_id: str,
+        total_input_tokens: int,
+        total_output_tokens: int,
+        total_cost: Decimal,
+    ) -> None:
+        """Update debate token and cost totals."""
+        data = {
+            "total_input_tokens": total_input_tokens,
+            "total_output_tokens": total_output_tokens,
+            "total_cost": float(total_cost),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        self._db.table("debates").update(data).eq("id", debate_id).execute()
+
+    async def save_round(
+        self,
+        debate_id: str,
+        round_number: int,
+    ) -> str:
+        """
+        Create a new round record in the database.
+
+        Returns:
+            The ID of the created round.
+        """
+        data = {
+            "debate_id": debate_id,
+            "round_number": round_number,
+        }
+        result = self._db.table("debate_rounds").insert(data).execute()
+        return str(result.data[0]["id"])
+
+    async def save_response(
+        self,
+        round_id: str,
+        response: PersonalityResponse,
+    ) -> str:
+        """
+        Save a personality response to the database.
+
+        Returns:
+            The ID of the created response.
+        """
+        data = {
+            "round_id": round_id,
+            "personality_name": response.personality_name,
+            "thinking_content": response.thinking_content,
+            "answer_content": response.answer_content,
+            "input_tokens": response.input_tokens,
+            "output_tokens": response.output_tokens,
+            "cost": float(response.cost),
+        }
+        result = self._db.table("debate_responses").insert(data).execute()
+        return str(result.data[0]["id"])
+
+    async def save_synthesis(
+        self,
+        debate_id: str,
+        content: str,
+        input_tokens: int,
+        output_tokens: int,
+        cost: Decimal,
+    ) -> str:
+        """
+        Save the debate synthesis to the database.
+
+        Returns:
+            The ID of the created synthesis.
+        """
+        data = {
+            "debate_id": debate_id,
+            "content": content,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost": float(cost),
+        }
+        result = self._db.table("debate_synthesis").insert(data).execute()
+        return str(result.data[0]["id"])
 
     def _map_to_debate(
         self,

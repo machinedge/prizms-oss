@@ -107,6 +107,74 @@ graph TB
 3. Cross-module dependencies are injected via the ServiceContainer
 4. Shared infrastructure is limited to truly cross-cutting concerns
 
+### SSE Streaming Architecture
+
+The debates module uses Server-Sent Events (SSE) for real-time streaming of debate execution:
+
+```mermaid
+flowchart TB
+    subgraph Client
+        FE[Frontend/curl]
+    end
+
+    subgraph API["FastAPI Layer"]
+        EP["GET /api/debates/{id}/stream"]
+    end
+
+    subgraph Debates["Debates Module"]
+        DS[DebateService]
+        DSA[DebateStreamAdapter]
+    end
+
+    subgraph Core["Core/Providers"]
+        PF[providers/factory.py]
+        OUT[core/output.py]
+    end
+
+    subgraph Usage["Usage Module"]
+        US[UsageService]
+    end
+
+    subgraph DB["Supabase"]
+        DT[(debates)]
+        RT[(debate_rounds)]
+        RSP[(debate_responses)]
+        SYN[(debate_synthesis)]
+    end
+
+    FE -->|SSE connection| EP
+    EP -->|start_debate_stream| DS
+    DS -->|delegates to| DSA
+    DSA -->|get_providers| PF
+    DSA -->|split_cot_and_answer| OUT
+    DSA -->|record_usage| US
+    DSA -->|persist round| RT
+    DSA -->|persist response| RSP
+    DSA -->|persist synthesis| SYN
+    DSA -->|update status| DT
+    DSA -.->|yields DebateEvent| EP
+    EP -.->|SSE events| FE
+```
+
+**Components:**
+
+| Component | Description |
+|-----------|-------------|
+| `DebateStreamAdapter` | Orchestrates debate execution, streams LLM responses, persists results |
+| `DebateService` | CRUD operations and streaming delegation |
+| `UsageService` | Records token usage and calculates costs |
+| `DebateEvent` | Typed events emitted via SSE (started, round, personality, synthesis, completed) |
+
+**Event Flow:**
+
+1. Client connects to SSE endpoint with debate ID
+2. Service validates debate is in PENDING status
+3. Adapter iterates through rounds and personalities
+4. Each LLM response is streamed as chunks, then persisted
+5. Usage is recorded after each response
+6. Synthesis runs after all rounds complete (if enabled)
+7. Final event includes total cost and token counts
+
 ### Pricing Architecture
 
 The usage module implements a **hybrid pricing system** for calculating LLM API costs:
@@ -370,6 +438,56 @@ curl -H "Authorization: Bearer <token>" http://localhost:8000/api/users/me
 | Endpoint | Description |
 |----------|-------------|
 | `GET /api/users/me` | Get the current user's profile |
+| `POST /api/debates` | Create a new debate |
+| `GET /api/debates` | List user's debates (paginated) |
+| `GET /api/debates/{id}` | Get a specific debate with all rounds |
+| `GET /api/debates/{id}/stream` | Stream debate execution via SSE |
+| `POST /api/debates/{id}/cancel` | Cancel an active debate |
+| `DELETE /api/debates/{id}` | Delete a debate |
+
+### Public Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/personalities` | List all available personalities |
+| `GET /api/personalities/debate` | List personalities available for debates (excludes system personalities) |
+
+The personalities endpoints return dynamically-discovered personalities from the `prompts/` directory. System personalities (`consensus_check`, `synthesizer`) are marked as such and excluded from the `/debate` endpoint.
+
+### Debates API
+
+**Create a Debate:**
+
+```bash
+curl -X POST http://localhost:8000/api/debates \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "What is the meaning of life?",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-20250514",
+    "settings": {
+      "max_rounds": 3,
+      "personalities": ["critic", "interpreter", "judge"],
+      "include_synthesis": true
+    }
+  }'
+```
+
+**Stream a Debate:**
+
+```bash
+curl -N http://localhost:8000/api/debates/<id>/stream \
+  -H "Authorization: Bearer <token>"
+```
+
+SSE events are emitted in the following order:
+- `debate_started` - Debate has begun
+- `round_started` / `round_completed` - Per round
+- `personality_started` / `answer_chunk` / `personality_completed` - Per personality
+- `synthesis_started` / `synthesis_chunk` / `synthesis_completed` - If synthesis enabled
+- `cost_update` - After each LLM response
+- `debate_completed` - Debate finished successfully
 
 ### Error Responses
 
@@ -659,11 +777,16 @@ backend/
 │   └── routes/             # API route handlers
 │       ├── __init__.py
 │       ├── health.py       # Health check endpoints
+│       ├── personalities.py # Personality discovery endpoints
 │       └── users.py        # User profile endpoints
 ├── modules/                # Feature modules (modular monolith)
 │   ├── auth/               # Authentication module
 │   ├── billing/            # Billing & credits module
 │   ├── debates/            # Debate orchestration module
+│   │   ├── models.py       # Debate data models and events
+│   │   ├── service.py      # Debate CRUD and streaming
+│   │   ├── stream_adapter.py # SSE streaming orchestrator
+│   │   └── routes.py       # REST and SSE endpoints
 │   └── usage/              # Usage tracking module
 ├── shared/                 # Shared infrastructure
 │   ├── config.py           # Pydantic settings (env vars)

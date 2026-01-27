@@ -1,23 +1,21 @@
-"""Node functions for the debate graph."""
+"""Node functions for the debate graph.
+
+These nodes use LangGraph's streaming system:
+- LLM tokens stream automatically via stream_mode="messages"
+- Custom events (round_started, personality_completed, etc.) via get_stream_writer()
+"""
 
 import asyncio
 import json
 import re
+from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from rich.layout import Layout
-from rich.live import Live
+from langgraph.config import get_stream_writer
 
 from providers.base import LLMProvider, ModelConfig
 
 from .config import Config, PersonalityConfig, load_prompt
-from .display import (
-    console,
-    create_round_layout,
-    print_answers,
-    print_round_summary,
-    update_panel,
-)
 
 
 def format_previous_round(previous_round: dict[str, str] | None) -> str:
@@ -74,11 +72,12 @@ async def stream_personality(
     config: Config,
     providers: dict[str, LLMProvider],
     buffers: dict[str, str],
-    layout: Layout,
-    live: Live,
     instance: int | None = None,
 ) -> tuple[str, str]:
-    """Stream LLM response for a personality and update the display.
+    """Stream LLM response for a personality.
+
+    LLM tokens are automatically streamed via LangGraph's stream_mode="messages".
+    This function accumulates the full response for state updates.
 
     Args:
         personality_name: Name of the personality
@@ -87,8 +86,6 @@ async def stream_personality(
         config: Full configuration object
         providers: Dictionary of provider instances by type
         buffers: Shared dict for accumulating streamed content
-        layout: Rich Layout for display
-        live: Rich Live context for refreshing
         instance: Optional instance number for providers that require
                  separate instances for parallel execution (e.g., LM Studio).
 
@@ -111,11 +108,10 @@ async def stream_personality(
 
     buffers[personality_name] = ""
 
+    # Stream via LangChain - tokens automatically stream with stream_mode="messages"
     async for chunk in llm.astream(messages):
         if chunk.content:
             buffers[personality_name] += chunk.content
-            update_panel(layout, personality_name, buffers[personality_name])
-            live.refresh()
 
     return (personality_name, buffers[personality_name])
 
@@ -154,11 +150,12 @@ def _compute_provider_instances(
     return instance_map
 
 
-def debate_round(state: dict) -> dict:
+async def debate_round(state: dict) -> dict:
     """Execute one round of debate with all personalities responding in parallel.
 
-    This node runs all personalities concurrently, streaming their responses
-    to a multi-column Rich display.
+    This node runs all personalities concurrently. LLM tokens are automatically
+    streamed via LangGraph's stream_mode="messages". Custom events are emitted
+    via get_stream_writer() for SSE streaming.
 
     Args:
         state: Current debate state
@@ -166,6 +163,8 @@ def debate_round(state: dict) -> dict:
     Returns:
         Updated state with new round appended and current_round incremented
     """
+    writer = get_stream_writer()
+    
     personalities = state["personalities"]
     question = state["question"]
     config: Config = state["config"]
@@ -177,42 +176,58 @@ def debate_round(state: dict) -> dict:
     previous_round = rounds[-1] if rounds else None
 
     round_num = current_round + 1
-    console.print(f"\n[bold cyan]Round {round_num}[/bold cyan]")
+    
+    # Emit round_started custom event for SSE
+    writer({
+        "type": "round_started",
+        "round_number": round_num,
+        "personalities": personalities,
+    })
 
-    layout = create_round_layout(personalities, round_num)
     buffers: dict[str, str] = {}
 
     # Compute per-provider instance numbers for LM Studio parallel execution
     instance_map = _compute_provider_instances(personalities, config)
 
-    # Initialize panels
+    # Emit personality_started events and run all concurrently
     for personality in personalities:
-        update_panel(layout, personality, "Waiting for response...")
+        writer({
+            "type": "personality_started",
+            "round_number": round_num,
+            "personality": personality,
+        })
 
-    async def run_all():
-        with Live(layout, console=console, refresh_per_second=10) as live:
-            tasks = [
-                stream_personality(
-                    p,
-                    question,
-                    previous_round,
-                    config,
-                    providers,
-                    buffers,
-                    layout,
-                    live,
-                    instance=instance_map[p],  # Per-provider instance number
-                )
-                for p in personalities
-            ]
-            results = await asyncio.gather(*tasks)
-        return dict(results)
+    # Run all personalities in parallel
+    tasks = [
+        stream_personality(
+            p,
+            question,
+            previous_round,
+            config,
+            providers,
+            buffers,
+            instance=instance_map[p],
+        )
+        for p in personalities
+    ]
+    results = await asyncio.gather(*tasks)
+    responses = dict(results)
 
-    responses = asyncio.run(run_all())
+    # Emit personality_completed events
+    for personality, response in responses.items():
+        writer({
+            "type": "personality_completed",
+            "round_number": round_num,
+            "personality": personality,
+            "response_length": len(response),
+        })
 
-    # After streaming completes, print compact summary and answers
-    print_round_summary(round_num, responses)
-    print_answers(round_num, responses)
+    # Emit round_completed custom event
+    writer({
+        "type": "round_completed",
+        "round_number": round_num,
+        "response_count": len(responses),
+    })
 
     return {
         "rounds": [responses],  # Will be appended via operator.add
@@ -220,7 +235,7 @@ def debate_round(state: dict) -> dict:
     }
 
 
-def check_consensus(state: dict) -> dict:
+async def check_consensus(state: dict) -> dict:
     """Check if personalities have reached consensus.
 
     Uses a neutral LLM call to analyze the latest round of responses
@@ -232,6 +247,8 @@ def check_consensus(state: dict) -> dict:
     Returns:
         Updated state with consensus_reached and consensus_reasoning
     """
+    writer = get_stream_writer()
+    
     rounds = state.get("rounds", [])
     if not rounds:
         return {"consensus_reached": False, "consensus_reasoning": "No responses yet"}
@@ -241,7 +258,12 @@ def check_consensus(state: dict) -> dict:
 
     # Skip consensus check on first round - always do at least 2 rounds
     if current_round_num < 2:
-        console.print("[dim]Skipping consensus check on first round...[/dim]")
+        writer({
+            "type": "consensus_check",
+            "round_number": current_round_num,
+            "skipped": True,
+            "reason": "First round - continuing debate",
+        })
         return {"consensus_reached": False, "consensus_reasoning": "First round - continuing debate"}
 
     config: Config = state["config"]
@@ -277,10 +299,14 @@ Respond with JSON only: {"consensus": true/false, "reasoning": "brief explanatio
         HumanMessage(content=f"Analyze these responses for consensus:\n\n{response_text}"),
     ]
 
-    console.print("[dim]Checking for consensus...[/dim]")
+    writer({
+        "type": "consensus_check",
+        "round_number": current_round_num,
+        "checking": True,
+    })
 
-    # Synchronous call for consensus check (no need to stream)
-    response = asyncio.run(llm.ainvoke(messages))
+    # Async invoke for consensus check
+    response = await llm.ainvoke(messages)
     content = response.content
 
     # Parse JSON response
@@ -298,10 +324,12 @@ Respond with JSON only: {"consensus": true/false, "reasoning": "brief explanatio
         consensus = False
         reasoning = f"Invalid JSON in response: {content[:200]}"
 
-    if consensus:
-        console.print(f"[green]Consensus reached:[/green] {reasoning}")
-    else:
-        console.print(f"[yellow]No consensus:[/yellow] {reasoning}")
+    writer({
+        "type": "consensus_result",
+        "round_number": current_round_num,
+        "consensus_reached": consensus,
+        "reasoning": reasoning,
+    })
 
     return {
         "consensus_reached": consensus,
@@ -309,11 +337,12 @@ Respond with JSON only: {"consensus": true/false, "reasoning": "brief explanatio
     }
 
 
-def synthesize(state: dict) -> dict:
+async def synthesize(state: dict) -> dict:
     """Produce final synthesized output from the dedicated synthesizer prompt.
 
     The synthesizer reviews all rounds of debate and produces a final
-    integrated, dispassionate perspective.
+    integrated, dispassionate perspective. LLM tokens are automatically
+    streamed via stream_mode="messages".
 
     Args:
         state: Current debate state
@@ -321,6 +350,8 @@ def synthesize(state: dict) -> dict:
     Returns:
         Updated state with final_synthesis
     """
+    writer = get_stream_writer()
+    
     config: Config = state["config"]
     providers: dict[str, LLMProvider] = state["providers"]
     question = state["question"]
@@ -328,8 +359,12 @@ def synthesize(state: dict) -> dict:
     consensus_reasoning = state.get("consensus_reasoning", "")
 
     synthesizer_prompt_name = config.synthesizer_prompt
-    display_name = synthesizer_prompt_name.replace("_", " ").title()
-    console.print(f"\n[bold magenta]Synthesis by {display_name}[/bold magenta]")
+    
+    writer({
+        "type": "synthesis_started",
+        "synthesizer": synthesizer_prompt_name,
+        "total_rounds": len(rounds),
+    })
 
     # Get synthesizer personality and LLM
     try:
@@ -365,17 +400,15 @@ def synthesize(state: dict) -> dict:
         HumanMessage(content="".join(context_parts)),
     ]
 
-    # Stream the synthesis
+    # Stream the synthesis - tokens auto-stream via stream_mode="messages"
     full_response = ""
+    async for chunk in llm.astream(messages):
+        if chunk.content:
+            full_response += chunk.content
 
-    async def stream_synthesis():
-        nonlocal full_response
-        async for chunk in llm.astream(messages):
-            if chunk.content:
-                full_response += chunk.content
-                console.print(chunk.content, end="")
-
-    asyncio.run(stream_synthesis())
-    console.print()  # Newline after streaming
+    writer({
+        "type": "synthesis_completed",
+        "content_length": len(full_response),
+    })
 
     return {"final_synthesis": full_response}

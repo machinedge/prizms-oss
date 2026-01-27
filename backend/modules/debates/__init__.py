@@ -23,8 +23,8 @@ from .models import (
     DebateStatus,
     DebateEvent,
     DebateEventType,
-    PersonalityType,
-    DEFAULT_PERSONALITIES,
+    SYSTEM_PERSONALITIES,
+    get_default_personalities,
 )
 from .exceptions import (
     DebateError,
@@ -51,8 +51,8 @@ __all__ = [
     "DebateStatus",
     "DebateEvent",
     "DebateEventType",
-    "PersonalityType",
-    "DEFAULT_PERSONALITIES",
+    "SYSTEM_PERSONALITIES",
+    "get_default_personalities",
     # Exceptions
     "DebateError",
     "DebateNotFoundError",

@@ -358,12 +358,28 @@ class TestDebateService:
         assert response.debates[0].question.endswith("...")
 
     @pytest.mark.asyncio
-    async def test_start_debate_stream(self):
-        """Should stream debate events."""
+    async def test_start_debate_stream_not_found(self):
+        """Should yield error event for non-existent debate."""
         mock_supabase = MagicMock()
         service = DebateService(supabase_client=mock_supabase)
         
-        debate_data = create_mock_debate_data()
+        mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+
+        events = []
+        async for event in service.start_debate_stream("non-existent", "user-123"):
+            events.append(event)
+
+        assert len(events) == 1
+        assert events[0].type == DebateEventType.ERROR
+        assert "not found" in events[0].error.lower()
+
+    @pytest.mark.asyncio
+    async def test_start_debate_stream_already_completed(self):
+        """Should yield error event for non-pending debate."""
+        mock_supabase = MagicMock()
+        service = DebateService(supabase_client=mock_supabase)
+        
+        debate_data = create_mock_debate_data(status="completed")
         
         # Configure mock for chained calls
         debates_table = MagicMock()
@@ -383,7 +399,6 @@ class TestDebateService:
         
         # Debates query
         debates_table.select.return_value.eq.return_value.execute.return_value.data = [debate_data]
-        debates_table.update.return_value.eq.return_value.execute.return_value = MagicMock()
         
         # Rounds query (empty)
         rounds_table.select.return_value.eq.return_value.order.return_value.execute.return_value.data = []
@@ -395,21 +410,9 @@ class TestDebateService:
         async for event in service.start_debate_stream("debate-123", "user-123"):
             events.append(event)
 
-        assert len(events) >= 2
-        assert events[0].type == DebateEventType.DEBATE_STARTED
-        assert events[-1].type == DebateEventType.DEBATE_COMPLETED
-
-    @pytest.mark.asyncio
-    async def test_start_debate_stream_not_found(self):
-        """Should raise error for non-existent debate."""
-        mock_supabase = MagicMock()
-        service = DebateService(supabase_client=mock_supabase)
-        
-        mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
-
-        with pytest.raises(DebateNotFoundError):
-            async for _ in service.start_debate_stream("non-existent", "user-123"):
-                pass
+        assert len(events) == 1
+        assert events[0].type == DebateEventType.ERROR
+        assert "already completed" in events[0].error.lower()
 
     @pytest.mark.asyncio
     async def test_cancel_debate(self):

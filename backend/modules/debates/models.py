@@ -21,22 +21,32 @@ class DebateStatus(str, Enum):
     CANCELLED = "cancelled"  # Cancelled by user
 
 
-class PersonalityType(str, Enum):
-    """Built-in personality types."""
-
-    OPTIMIST = "optimist"
-    PESSIMIST = "pessimist"
-    ANALYST = "analyst"
-    CREATIVE = "creative"
-    PRAGMATIST = "pragmatist"
+# System personalities that are excluded from debate participation
+SYSTEM_PERSONALITIES = {"consensus_check", "synthesizer"}
 
 
-# Default personalities for debates
-DEFAULT_PERSONALITIES = [
-    PersonalityType.OPTIMIST,
-    PersonalityType.PESSIMIST,
-    PersonalityType.ANALYST,
-]
+def get_default_personalities() -> list[str]:
+    """
+    Get default personalities for debates.
+
+    Returns the first 3 non-system personalities from the prompts directory.
+    Falls back to empty list if prompts directory doesn't exist.
+    """
+    from pathlib import Path
+
+    prompts_dir = Path(__file__).parent.parent.parent / "prompts"
+    if not prompts_dir.exists():
+        return []
+
+    personalities = []
+    for prompt_file in sorted(prompts_dir.glob("*.txt")):
+        name = prompt_file.stem
+        if name not in SYSTEM_PERSONALITIES:
+            personalities.append(name)
+        if len(personalities) >= 3:
+            break
+
+    return personalities
 
 
 class DebateSettings(BaseModel):
@@ -55,8 +65,8 @@ class DebateSettings(BaseModel):
         description="LLM temperature setting",
     )
     personalities: list[str] = Field(
-        default_factory=lambda: [p.value for p in DEFAULT_PERSONALITIES],
-        description="Personality types to include",
+        default_factory=get_default_personalities,
+        description="Personality names to include (must match prompt files in prompts/)",
     )
     include_synthesis: bool = Field(
         default=True,

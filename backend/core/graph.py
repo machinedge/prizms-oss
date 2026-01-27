@@ -1,4 +1,12 @@
-"""LangGraph state and graph definition for multi-round debate."""
+"""LangGraph state and graph definition for multi-round debate.
+
+This graph supports multiple streaming modes:
+- stream_mode="messages": LLM token streaming from all nodes
+- stream_mode="updates": State updates after each node
+- stream_mode="custom": Custom events via get_stream_writer()
+
+Use graph.astream() for async streaming in the API layer.
+"""
 
 import operator
 from typing import Annotated, Any, TypedDict
@@ -43,18 +51,27 @@ def should_continue(state: DebateState) -> str:
     return "debate_round"
 
 
-def build_graph() -> StateGraph:
+def build_graph():
     """Build and return the compiled debate graph.
 
     Graph structure:
         debate_round -> check_consensus -> [synthesize | debate_round]
         synthesize -> END
+
+    The returned graph supports:
+    - graph.invoke(state) for synchronous execution
+    - graph.ainvoke(state) for async execution
+    - graph.astream(state, stream_mode=["messages", "updates", "custom"])
+      for async streaming with LLM tokens, state updates, and custom events
+
+    Returns:
+        Compiled StateGraph ready for execution
     """
     from .nodes import check_consensus, debate_round, synthesize
 
     graph = StateGraph(DebateState)
 
-    # Add nodes
+    # Add async nodes
     graph.add_node("debate_round", debate_round)
     graph.add_node("check_consensus", check_consensus)
     graph.add_node("synthesize", synthesize)

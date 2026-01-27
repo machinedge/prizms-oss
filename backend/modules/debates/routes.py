@@ -1,11 +1,11 @@
 """
 Debate API endpoints.
 
-Provides REST endpoints for debate CRUD operations.
-SSE streaming endpoint will be added in Story 14.
+Provides REST endpoints for debate CRUD operations and SSE streaming.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sse_starlette.sse import EventSourceResponse
 from typing import Optional
 
 from api.middleware.auth import get_current_user
@@ -106,3 +106,75 @@ async def delete_debate(
         raise HTTPException(status_code=404, detail="Debate not found")
     except DebateAccessDeniedError:
         raise HTTPException(status_code=404, detail="Debate not found")
+
+
+async def event_generator(
+    debate_id: str,
+    user_id: str,
+    service: IDebateService,
+):
+    """
+    Generate SSE events for a debate.
+
+    Uses the DebateEvent.to_sse() method for formatting.
+
+    Yields events in the format:
+        event: <event_type>
+        data: <json_data>
+    """
+    async for event in service.start_debate_stream(debate_id, user_id):
+        yield {
+            "event": event.type.value,
+            "data": event.model_dump_json(exclude_none=True),
+        }
+
+
+@router.get("/{debate_id}/stream")
+async def stream_debate(
+    debate_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: IDebateService = Depends(get_debate_service),
+):
+    """
+    Stream debate events via SSE.
+
+    Connect to this endpoint to start a pending debate and receive
+    real-time updates. The debate must be in 'pending' status.
+
+    Event format:
+        event: <event_type>
+        data: {"type": "<type>", "debate_id": "...", "timestamp": "...", ...}
+
+    Event types (from DebateEventType):
+
+    Lifecycle:
+    - debate_started: Debate has begun
+    - debate_completed: Debate finished successfully
+    - debate_failed: Debate failed with error
+
+    Round:
+    - round_started: New round starting
+    - round_completed: Round finished
+
+    Response:
+    - personality_started: Personality beginning response
+    - thinking_chunk: Chain-of-thought chunk (if extended thinking enabled)
+    - answer_chunk: Answer content chunk
+    - personality_completed: Personality finished with full response
+
+    Synthesis:
+    - synthesis_started: Synthesis beginning
+    - synthesis_chunk: Synthesis content chunk
+    - synthesis_completed: Synthesis finished
+
+    Progress:
+    - progress_update: General progress info
+    - cost_update: Running cost total
+
+    Error:
+    - error: Non-fatal error occurred
+    """
+    return EventSourceResponse(
+        event_generator(debate_id, user.id, service),
+        media_type="text/event-stream",
+    )

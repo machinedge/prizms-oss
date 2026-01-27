@@ -11,13 +11,13 @@ from modules.debates.models import (
     DebateSettings,
     DebateEvent,
     DebateEventType,
-    PersonalityType,
     PersonalityResponse,
     DebateRound,
     DebateSynthesis,
     DebateListItem,
     DebateListResponse,
-    DEFAULT_PERSONALITIES,
+    SYSTEM_PERSONALITIES,
+    get_default_personalities,
 )
 
 
@@ -39,21 +39,19 @@ class TestDebateStatus:
         assert DebateStatus.PENDING == "pending"
 
 
-class TestPersonalityType:
-    def test_personality_values(self):
-        """Should have all expected personality types."""
-        assert PersonalityType.OPTIMIST == "optimist"
-        assert PersonalityType.PESSIMIST == "pessimist"
-        assert PersonalityType.ANALYST == "analyst"
-        assert PersonalityType.CREATIVE == "creative"
-        assert PersonalityType.PRAGMATIST == "pragmatist"
+class TestSystemPersonalities:
+    def test_system_personalities_defined(self):
+        """Should have system personalities defined."""
+        assert "consensus_check" in SYSTEM_PERSONALITIES
+        assert "synthesizer" in SYSTEM_PERSONALITIES
 
-    def test_default_personalities(self):
-        """Should have 3 default personalities."""
-        assert len(DEFAULT_PERSONALITIES) == 3
-        assert PersonalityType.OPTIMIST in DEFAULT_PERSONALITIES
-        assert PersonalityType.PESSIMIST in DEFAULT_PERSONALITIES
-        assert PersonalityType.ANALYST in DEFAULT_PERSONALITIES
+    def test_get_default_personalities(self):
+        """Should return non-system personalities."""
+        defaults = get_default_personalities()
+        assert isinstance(defaults, list)
+        # Defaults should not include system personalities
+        for personality in defaults:
+            assert personality not in SYSTEM_PERSONALITIES
 
 
 class TestDebateSettings:
@@ -62,7 +60,8 @@ class TestDebateSettings:
         settings = DebateSettings()
         assert settings.max_rounds == 3
         assert settings.temperature == 0.7
-        assert len(settings.personalities) == 3
+        # Personalities are now dynamic based on prompts directory
+        assert isinstance(settings.personalities, list)
         assert settings.include_synthesis is True
 
     def test_custom_settings(self):
