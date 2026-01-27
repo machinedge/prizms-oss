@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
-from .routes import health, users, personalities
+from .routes import health, users, personalities, usage
 from modules.debates.routes import router as debates_router
 
 
@@ -60,6 +60,7 @@ def create_app() -> FastAPI:
     app.include_router(users.router, prefix="/api/users", tags=["users"])
     app.include_router(personalities.router, prefix="/api/personalities", tags=["personalities"])
     app.include_router(debates_router, prefix="/api/debates", tags=["debates"])
+    app.include_router(usage.router, prefix="/api/usage", tags=["usage"])
 
     return app
 

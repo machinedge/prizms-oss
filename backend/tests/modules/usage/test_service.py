@@ -290,3 +290,71 @@ class TestUsageService:
         """Should return default pricing for unknown model."""
         pricing = usage_service.get_provider_pricing("unknown", "unknown-model")
         assert pricing.provider == "unknown"
+
+    def test_get_current_period(self, usage_service):
+        """Should return current month boundaries."""
+        period_start, period_end = usage_service.get_current_period()
+        
+        # Period start should be first day of month
+        assert period_start.day == 1
+        assert period_start.hour == 0
+        assert period_start.minute == 0
+        assert period_start.second == 0
+        
+        # Period end should be first day of next month
+        assert period_end.day == 1
+        assert period_end > period_start
+
+    def test_get_current_period_timezone(self, usage_service):
+        """Should return UTC datetimes."""
+        period_start, period_end = usage_service.get_current_period()
+        
+        assert period_start.tzinfo is not None
+        assert period_end.tzinfo is not None
+
+    @pytest.mark.asyncio
+    async def test_get_user_usage_empty(self, usage_service):
+        """Should return zeros for user with no usage."""
+        usage = await usage_service.get_user_usage("no-usage-user")
+        
+        assert usage["total_tokens"] == 0
+        assert usage["total_cost"] == 0.0
+        assert usage["debates_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_get_user_usage_with_records(self, usage_service):
+        """Should aggregate usage for current period."""
+        # Record some usage
+        for i in range(3):
+            await usage_service.record_usage("user-123", UsageRecord(
+                user_id="user-123",
+                provider="anthropic",
+                model="claude-sonnet-4-5",
+                input_tokens=1000,
+                output_tokens=500,
+                debate_id=f"debate-{i}",
+            ))
+        
+        usage = await usage_service.get_user_usage("user-123")
+        
+        assert usage["total_tokens"] == 4500  # 3 * (1000 + 500)
+        assert usage["total_cost"] > 0
+        assert usage["debates_count"] == 3
+
+    @pytest.mark.asyncio
+    async def test_get_user_usage_same_debate(self, usage_service):
+        """Should count unique debates only."""
+        # Record multiple usage records for same debate
+        for _ in range(5):
+            await usage_service.record_usage("user-123", UsageRecord(
+                user_id="user-123",
+                provider="anthropic",
+                model="claude-sonnet-4-5",
+                input_tokens=100,
+                output_tokens=50,
+                debate_id="same-debate",
+            ))
+        
+        usage = await usage_service.get_user_usage("user-123")
+        
+        assert usage["debates_count"] == 1  # Only one unique debate

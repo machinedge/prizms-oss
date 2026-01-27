@@ -23,6 +23,7 @@ from providers.base import ModelConfig, LLMProvider
 from shared.config import get_settings
 from modules.usage.service import get_usage_service
 from modules.usage.models import UsageRecord
+from modules.usage.token_counter import count_tokens
 
 from .models import (
     Debate,
@@ -358,9 +359,12 @@ class DebateStreamAdapter:
                 # Parse thinking vs answer content
                 thinking_content, answer_content = split_cot_and_answer(full_content)
                 
-                # Estimate tokens
-                input_tokens = len(self.debate.question) // 4 + 200
-                output_tokens = len(full_content) // 4
+                # Count tokens using tiktoken
+                # Input includes question + system prompt + prior context
+                # We count the question tokens and add estimated prompt overhead
+                question_tokens = count_tokens(self.debate.question, self.debate.model)
+                input_tokens = question_tokens + 200  # 200 tokens for system prompt overhead
+                output_tokens = count_tokens(full_content, self.debate.model)
                 
                 # Record usage
                 usage_record = await self.usage_service.record_usage(
@@ -468,9 +472,11 @@ class DebateStreamAdapter:
             elif event_type == "synthesis_completed":
                 full_content = self.streaming_buffers.get("synthesizer", "")
                 
-                # Estimate tokens
-                input_tokens = self.total_output_tokens + 500
-                output_tokens = len(full_content) // 4
+                # Count tokens using tiktoken
+                # Input for synthesis includes all prior debate outputs + system prompt
+                # We use accumulated output tokens as a proxy for context size
+                input_tokens = self.total_output_tokens + 500  # 500 for system prompt
+                output_tokens = count_tokens(full_content, self.debate.model)
                 
                 # Record usage
                 usage_record = await self.usage_service.record_usage(

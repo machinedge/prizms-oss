@@ -180,3 +180,29 @@ class IUsageService(Protocol):
             UnknownModelError: If provider/model combination is unknown
         """
         ...
+
+    def get_current_period(self) -> tuple[datetime, datetime]:
+        """
+        Get the current tracking period boundaries.
+
+        Returns:
+            Tuple of (period_start, period_end) datetimes
+        """
+        ...
+
+    async def get_user_usage(
+        self,
+        user_id: str,
+        period_start: Optional[datetime] = None,
+    ) -> dict:
+        """
+        Get aggregated usage for a user in a specific period.
+
+        Args:
+            user_id: Supabase user ID
+            period_start: Optional period start (defaults to current period)
+
+        Returns:
+            Dict with total_tokens, total_cost, debates_count
+        """
+        ...
