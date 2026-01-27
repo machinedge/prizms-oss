@@ -5,11 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from modules.debates.stream_adapter import (
-    DebateStreamAdapter,
-    APIConfigAdapter,
-    get_api_key_for_provider,
-)
+from modules.debates.stream_adapter import DebateStreamAdapter
+from modules.debates.state_builder import APIConfigAdapter, get_api_key_for_provider
 from modules.debates.models import (
     Debate,
     DebateEvent,
@@ -52,13 +49,13 @@ def create_mock_debate(
 class TestGetApiKeyForProvider:
     """Tests for the get_api_key_for_provider helper function."""
 
-    @patch("modules.debates.stream_adapter.get_settings")
+    @patch("modules.debates.state_builder.get_settings")
     def test_gets_anthropic_key(self, mock_settings):
         """Should return Anthropic API key."""
         mock_settings.return_value.anthropic_api_key = "test-key"
         assert get_api_key_for_provider("anthropic") == "test-key"
 
-    @patch("modules.debates.stream_adapter.get_settings")
+    @patch("modules.debates.state_builder.get_settings")
     def test_returns_empty_for_local_provider(self, mock_settings):
         """Should return empty string for local providers."""
         assert get_api_key_for_provider("ollama") == ""
@@ -74,7 +71,7 @@ class TestAPIConfigAdapter:
         debate = create_mock_debate()
         providers = {}
         
-        with patch("modules.debates.stream_adapter.get_api_key_for_provider", return_value="test-key"):
+        with patch("modules.debates.state_builder.get_api_key_for_provider", return_value="test-key"):
             adapter = APIConfigAdapter(debate, providers)
         
         assert "default" in adapter.models
@@ -86,7 +83,7 @@ class TestAPIConfigAdapter:
         debate = create_mock_debate(personalities=["critic", "interpreter"])
         providers = {}
         
-        with patch("modules.debates.stream_adapter.get_api_key_for_provider", return_value=""):
+        with patch("modules.debates.state_builder.get_api_key_for_provider", return_value=""):
             adapter = APIConfigAdapter(debate, providers)
         
         assert "critic" in adapter.personalities
@@ -100,7 +97,7 @@ class TestAPIConfigAdapter:
         debate = create_mock_debate(max_rounds=3)
         providers = {}
         
-        with patch("modules.debates.stream_adapter.get_api_key_for_provider", return_value=""):
+        with patch("modules.debates.state_builder.get_api_key_for_provider", return_value=""):
             adapter = APIConfigAdapter(debate, providers)
         
         assert adapter.max_rounds == 3
@@ -180,7 +177,7 @@ class TestDebateStreamAdapter:
     ):
         """Should emit debate_started as first event."""
         with patch(
-            "modules.debates.stream_adapter.get_usage_service",
+            "modules.debates.usage_tracker.get_usage_service",
             return_value=mock_usage_service,
         ), patch(
             "modules.debates.stream_adapter.get_providers",
@@ -189,7 +186,7 @@ class TestDebateStreamAdapter:
             "modules.debates.stream_adapter.build_graph",
             return_value=mock_graph,
         ), patch(
-            "modules.debates.stream_adapter.get_settings",
+            "modules.debates.state_builder.get_settings",
         ):
             adapter = DebateStreamAdapter(
                 debate=mock_debate,
@@ -217,7 +214,7 @@ class TestDebateStreamAdapter:
     ):
         """Should emit round_started and round_completed events."""
         with patch(
-            "modules.debates.stream_adapter.get_usage_service",
+            "modules.debates.usage_tracker.get_usage_service",
             return_value=mock_usage_service,
         ), patch(
             "modules.debates.stream_adapter.get_providers",
@@ -226,7 +223,7 @@ class TestDebateStreamAdapter:
             "modules.debates.stream_adapter.build_graph",
             return_value=mock_graph,
         ), patch(
-            "modules.debates.stream_adapter.get_settings",
+            "modules.debates.state_builder.get_settings",
         ):
             adapter = DebateStreamAdapter(
                 debate=mock_debate,
@@ -252,7 +249,7 @@ class TestDebateStreamAdapter:
     ):
         """Should emit personality_started and personality_completed events."""
         with patch(
-            "modules.debates.stream_adapter.get_usage_service",
+            "modules.debates.usage_tracker.get_usage_service",
             return_value=mock_usage_service,
         ), patch(
             "modules.debates.stream_adapter.get_providers",
@@ -261,7 +258,7 @@ class TestDebateStreamAdapter:
             "modules.debates.stream_adapter.build_graph",
             return_value=mock_graph,
         ), patch(
-            "modules.debates.stream_adapter.get_settings",
+            "modules.debates.state_builder.get_settings",
         ):
             adapter = DebateStreamAdapter(
                 debate=mock_debate,
@@ -287,7 +284,7 @@ class TestDebateStreamAdapter:
     ):
         """Should emit answer_chunk events from LangGraph messages stream."""
         with patch(
-            "modules.debates.stream_adapter.get_usage_service",
+            "modules.debates.usage_tracker.get_usage_service",
             return_value=mock_usage_service,
         ), patch(
             "modules.debates.stream_adapter.get_providers",
@@ -296,7 +293,7 @@ class TestDebateStreamAdapter:
             "modules.debates.stream_adapter.build_graph",
             return_value=mock_graph,
         ), patch(
-            "modules.debates.stream_adapter.get_settings",
+            "modules.debates.state_builder.get_settings",
         ):
             adapter = DebateStreamAdapter(
                 debate=mock_debate,
@@ -323,7 +320,7 @@ class TestDebateStreamAdapter:
     ):
         """Should emit synthesis events from LangGraph custom stream."""
         with patch(
-            "modules.debates.stream_adapter.get_usage_service",
+            "modules.debates.usage_tracker.get_usage_service",
             return_value=mock_usage_service,
         ), patch(
             "modules.debates.stream_adapter.get_providers",
@@ -332,7 +329,7 @@ class TestDebateStreamAdapter:
             "modules.debates.stream_adapter.build_graph",
             return_value=mock_graph,
         ), patch(
-            "modules.debates.stream_adapter.get_settings",
+            "modules.debates.state_builder.get_settings",
         ):
             adapter = DebateStreamAdapter(
                 debate=mock_debate,
@@ -358,7 +355,7 @@ class TestDebateStreamAdapter:
     ):
         """Should emit cost_update events after personality completion."""
         with patch(
-            "modules.debates.stream_adapter.get_usage_service",
+            "modules.debates.usage_tracker.get_usage_service",
             return_value=mock_usage_service,
         ), patch(
             "modules.debates.stream_adapter.get_providers",
@@ -367,7 +364,7 @@ class TestDebateStreamAdapter:
             "modules.debates.stream_adapter.build_graph",
             return_value=mock_graph,
         ), patch(
-            "modules.debates.stream_adapter.get_settings",
+            "modules.debates.state_builder.get_settings",
         ):
             adapter = DebateStreamAdapter(
                 debate=mock_debate,
@@ -394,7 +391,7 @@ class TestDebateStreamAdapter:
     ):
         """Should emit debate_completed event on success."""
         with patch(
-            "modules.debates.stream_adapter.get_usage_service",
+            "modules.debates.usage_tracker.get_usage_service",
             return_value=mock_usage_service,
         ), patch(
             "modules.debates.stream_adapter.get_providers",
@@ -403,7 +400,7 @@ class TestDebateStreamAdapter:
             "modules.debates.stream_adapter.build_graph",
             return_value=mock_graph,
         ), patch(
-            "modules.debates.stream_adapter.get_settings",
+            "modules.debates.state_builder.get_settings",
         ):
             adapter = DebateStreamAdapter(
                 debate=mock_debate,
@@ -435,7 +432,7 @@ class TestDebateStreamAdapter:
         mock_graph.astream = failing_astream
 
         with patch(
-            "modules.debates.stream_adapter.get_usage_service",
+            "modules.debates.usage_tracker.get_usage_service",
             return_value=mock_usage_service,
         ), patch(
             "modules.debates.stream_adapter.get_providers",
@@ -444,7 +441,7 @@ class TestDebateStreamAdapter:
             "modules.debates.stream_adapter.build_graph",
             return_value=mock_graph,
         ), patch(
-            "modules.debates.stream_adapter.get_settings",
+            "modules.debates.state_builder.get_settings",
         ):
             adapter = DebateStreamAdapter(
                 debate=mock_debate,
@@ -469,7 +466,7 @@ class TestDebateStreamAdapter:
     ):
         """Should call UsageService.record_usage() after each personality."""
         with patch(
-            "modules.debates.stream_adapter.get_usage_service",
+            "modules.debates.usage_tracker.get_usage_service",
             return_value=mock_usage_service,
         ), patch(
             "modules.debates.stream_adapter.get_providers",
@@ -478,7 +475,7 @@ class TestDebateStreamAdapter:
             "modules.debates.stream_adapter.build_graph",
             return_value=mock_graph,
         ), patch(
-            "modules.debates.stream_adapter.get_settings",
+            "modules.debates.state_builder.get_settings",
         ):
             adapter = DebateStreamAdapter(
                 debate=mock_debate,
@@ -501,7 +498,7 @@ class TestDebateStreamAdapter:
     ):
         """Should call save_round when round starts."""
         with patch(
-            "modules.debates.stream_adapter.get_usage_service",
+            "modules.debates.usage_tracker.get_usage_service",
             return_value=mock_usage_service,
         ), patch(
             "modules.debates.stream_adapter.get_providers",
@@ -510,7 +507,7 @@ class TestDebateStreamAdapter:
             "modules.debates.stream_adapter.build_graph",
             return_value=mock_graph,
         ), patch(
-            "modules.debates.stream_adapter.get_settings",
+            "modules.debates.state_builder.get_settings",
         ):
             adapter = DebateStreamAdapter(
                 debate=mock_debate,
@@ -533,7 +530,7 @@ class TestDebateStreamAdapter:
     ):
         """Should call save_response for each personality completion."""
         with patch(
-            "modules.debates.stream_adapter.get_usage_service",
+            "modules.debates.usage_tracker.get_usage_service",
             return_value=mock_usage_service,
         ), patch(
             "modules.debates.stream_adapter.get_providers",
@@ -542,7 +539,7 @@ class TestDebateStreamAdapter:
             "modules.debates.stream_adapter.build_graph",
             return_value=mock_graph,
         ), patch(
-            "modules.debates.stream_adapter.get_settings",
+            "modules.debates.state_builder.get_settings",
         ):
             adapter = DebateStreamAdapter(
                 debate=mock_debate,
@@ -565,7 +562,7 @@ class TestDebateStreamAdapter:
     ):
         """Should call save_synthesis when synthesis completes."""
         with patch(
-            "modules.debates.stream_adapter.get_usage_service",
+            "modules.debates.usage_tracker.get_usage_service",
             return_value=mock_usage_service,
         ), patch(
             "modules.debates.stream_adapter.get_providers",
@@ -574,7 +571,7 @@ class TestDebateStreamAdapter:
             "modules.debates.stream_adapter.build_graph",
             return_value=mock_graph,
         ), patch(
-            "modules.debates.stream_adapter.get_settings",
+            "modules.debates.state_builder.get_settings",
         ):
             adapter = DebateStreamAdapter(
                 debate=mock_debate,
