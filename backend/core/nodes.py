@@ -14,8 +14,10 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.config import get_stream_writer
 
 from providers.base import LLMProvider, ModelConfig
+from shared.debate_config import DebateConfig, PersonalityConfig, load_prompt
 
-from .config import Config, PersonalityConfig, load_prompt
+# Type alias for backward compatibility
+Config = DebateConfig
 
 
 def format_previous_round(previous_round: dict[str, str] | None) -> str:

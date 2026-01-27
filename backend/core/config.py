@@ -1,74 +1,33 @@
-"""Configuration loading and parsing for LiteLLM-style YAML configs."""
+"""Configuration loading and parsing for LiteLLM-style YAML configs.
 
-from dataclasses import dataclass
+DEPRECATION NOTICE:
+    This module is maintained for CLI backward compatibility.
+    New code should import from shared.debate_config directly.
+
+    The dataclass-based models have been replaced with Pydantic models
+    in shared/debate_config.py. This module re-exports those models
+    and provides YAML loading functionality.
+"""
+
 from pathlib import Path
 
 import yaml
 
 from providers.base import ModelConfig
 
+# Re-export unified Pydantic models for backward compatibility
+# New code should import directly from shared.debate_config
+from shared.debate_config import (
+    DebateConfig,
+    DebateSettings,
+    PersonalityConfig,
+    get_debate_personalities,
+    load_prompt,
+)
 
-@dataclass
-class PersonalityConfig:
-    """Configuration for a debate personality.
-
-    Attributes:
-        name: Personality identifier (e.g., "critic", "judge")
-        prompt_path: Path to the prompt file
-        model_name: References a model_name in the models dict
-    """
-
-    name: str
-    prompt_path: Path
-    model_name: str
-
-
-@dataclass
-class DebateSettings:
-    """Settings for the debate process.
-
-    Attributes:
-        output_dir: Directory for saving output files
-        max_rounds: Maximum number of debate rounds
-        consensus_prompt: Name of the consensus check personality
-        synthesizer_prompt: Name of the synthesizer personality
-    """
-
-    output_dir: Path
-    max_rounds: int
-    consensus_prompt: str
-    synthesizer_prompt: str
-
-
-@dataclass
-class Config:
-    """Complete configuration for the Prizms debate system.
-
-    Attributes:
-        debate_settings: Settings for the debate process
-        models: Dictionary mapping model_name to ModelConfig
-        personalities: Dictionary mapping personality name to PersonalityConfig
-    """
-
-    debate_settings: DebateSettings
-    models: dict[str, ModelConfig]
-    personalities: dict[str, PersonalityConfig]
-
-    @property
-    def output_dir(self) -> Path:
-        return self.debate_settings.output_dir
-
-    @property
-    def max_rounds(self) -> int:
-        return self.debate_settings.max_rounds
-
-    @property
-    def consensus_prompt(self) -> str:
-        return self.debate_settings.consensus_prompt
-
-    @property
-    def synthesizer_prompt(self) -> str:
-        return self.debate_settings.synthesizer_prompt
+# Alias for CLI backward compatibility
+# The CLI uses `Config` as the type name
+Config = DebateConfig
 
 
 def _parse_model_list(
@@ -143,14 +102,14 @@ def _parse_personalities(
     return personalities
 
 
-def load_config(config_path: Path) -> Config:
+def load_config(config_path: Path) -> DebateConfig:
     """Load configuration from a YAML file.
 
     Args:
         config_path: Path to the YAML config file
 
     Returns:
-        Parsed Config object
+        Parsed DebateConfig object (aliased as Config for backward compatibility)
 
     Raises:
         FileNotFoundError: If config file doesn't exist
@@ -183,35 +142,8 @@ def load_config(config_path: Path) -> Config:
     personalities_list = data.get("personalities", [])
     personalities = _parse_personalities(personalities_list, config_dir)
 
-    return Config(
+    return DebateConfig(
         debate_settings=debate_settings,
         models=models,
         personalities=personalities,
     )
-
-
-def load_prompt(prompt_path: Path) -> str:
-    """Load a personality prompt from a file.
-
-    Args:
-        prompt_path: Path to the prompt file
-
-    Returns:
-        Contents of the prompt file
-    """
-    return prompt_path.read_text()
-
-
-def get_debate_personalities(config: Config) -> list[str]:
-    """Get list of personality names that participate in debate.
-
-    Excludes system personalities (consensus_check, synthesizer).
-
-    Args:
-        config: The loaded configuration
-
-    Returns:
-        List of personality names for debate participants
-    """
-    excluded = {config.consensus_prompt, config.synthesizer_prompt}
-    return [name for name in config.personalities if name not in excluded]

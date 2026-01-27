@@ -1,13 +1,12 @@
-"""Base classes and dataclasses for LLM providers."""
+"""Base classes and models for LLM providers."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel
 
 
-@dataclass
-class ModelConfig:
+class ModelConfig(BaseModel):
     """Configuration for a model, parsed from model_list entry.
 
     Attributes:
@@ -18,10 +17,12 @@ class ModelConfig:
         api_key: API key (empty string for local servers)
     """
 
+    model_config = {"frozen": True}
+
     model_name: str
     provider_type: str
     model_id: str
-    api_base: str
+    api_base: str = ""
     api_key: str = ""
 
 

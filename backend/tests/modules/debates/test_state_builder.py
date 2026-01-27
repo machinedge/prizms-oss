@@ -6,10 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from modules.debates.state_builder import (
-    APIConfigAdapter,
-    APIPersonalityConfig,
-    APIDebateSettings,
     get_api_key_for_provider,
+    build_debate_config,
     build_initial_state,
     PROMPTS_DIR,
 )
@@ -18,6 +16,7 @@ from modules.debates.models import (
     DebateStatus,
     DebateSettings,
 )
+from shared.debate_config import DebateConfig
 
 
 def create_mock_debate(
@@ -93,102 +92,69 @@ class TestGetApiKeyForProvider:
         assert get_api_key_for_provider("unknown_provider") == ""
 
 
-class TestAPIPersonalityConfig:
-    """Tests for the APIPersonalityConfig dataclass."""
-
-    def test_creates_personality_config(self):
-        """Should create a personality config with all fields."""
-        config = APIPersonalityConfig(
-            name="critic",
-            prompt_path=Path("/path/to/prompt.txt"),
-            model_name="default",
-        )
-        assert config.name == "critic"
-        assert config.prompt_path == Path("/path/to/prompt.txt")
-        assert config.model_name == "default"
-
-
-class TestAPIDebateSettings:
-    """Tests for the APIDebateSettings dataclass."""
-
-    def test_creates_debate_settings(self):
-        """Should create debate settings with all fields."""
-        settings = APIDebateSettings(
-            output_dir=Path("/tmp/output"),
-            max_rounds=3,
-        )
-        assert settings.output_dir == Path("/tmp/output")
-        assert settings.max_rounds == 3
-        assert settings.consensus_prompt == "consensus_check"
-        assert settings.synthesizer_prompt == "synthesizer"
-
-    def test_custom_prompts(self):
-        """Should allow custom prompt names."""
-        settings = APIDebateSettings(
-            output_dir=Path("/tmp/output"),
-            max_rounds=3,
-            consensus_prompt="custom_consensus",
-            synthesizer_prompt="custom_synth",
-        )
-        assert settings.consensus_prompt == "custom_consensus"
-        assert settings.synthesizer_prompt == "custom_synth"
-
-
-class TestAPIConfigAdapter:
-    """Tests for the APIConfigAdapter class."""
+class TestBuildDebateConfig:
+    """Tests for the build_debate_config function."""
 
     def test_builds_model_config(self):
         """Should build a ModelConfig from debate settings."""
         debate = create_mock_debate()
-        providers = {}
         
         with patch("modules.debates.state_builder.get_api_key_for_provider", return_value="test-key"):
-            adapter = APIConfigAdapter(debate, providers)
+            config = build_debate_config(debate)
         
-        assert "default" in adapter.models
-        assert adapter.models["default"].provider_type == "anthropic"
-        assert adapter.models["default"].model_id == "claude-sonnet-4-5"
-        assert adapter.models["default"].api_key == "test-key"
+        assert isinstance(config, DebateConfig)
+        assert "default" in config.models
+        assert config.models["default"].provider_type == "anthropic"
+        assert config.models["default"].model_id == "claude-sonnet-4-5"
+        assert config.models["default"].api_key == "test-key"
 
     def test_builds_personality_configs(self):
         """Should build personality configs for all personalities."""
         debate = create_mock_debate(personalities=["critic", "interpreter"])
-        providers = {}
         
         with patch("modules.debates.state_builder.get_api_key_for_provider", return_value=""):
-            adapter = APIConfigAdapter(debate, providers)
+            config = build_debate_config(debate)
         
         # User personalities
-        assert "critic" in adapter.personalities
-        assert "interpreter" in adapter.personalities
+        assert "critic" in config.personalities
+        assert "interpreter" in config.personalities
         # System personalities should also be present
-        assert "consensus_check" in adapter.personalities
-        assert "synthesizer" in adapter.personalities
+        assert "consensus_check" in config.personalities
+        assert "synthesizer" in config.personalities
 
     def test_personality_config_has_correct_prompt_path(self):
         """Should set correct prompt path for each personality."""
         debate = create_mock_debate(personalities=["critic"])
-        providers = {}
         
         with patch("modules.debates.state_builder.get_api_key_for_provider", return_value=""):
-            adapter = APIConfigAdapter(debate, providers)
+            config = build_debate_config(debate)
         
-        critic_config = adapter.personalities["critic"]
+        critic_config = config.personalities["critic"]
         assert critic_config.prompt_path == PROMPTS_DIR / "critic.txt"
         assert critic_config.model_name == "default"
 
     def test_provides_config_properties(self):
         """Should provide config-like properties."""
         debate = create_mock_debate(max_rounds=3)
-        providers = {}
         
         with patch("modules.debates.state_builder.get_api_key_for_provider", return_value=""):
-            adapter = APIConfigAdapter(debate, providers)
+            config = build_debate_config(debate)
         
-        assert adapter.max_rounds == 3
-        assert adapter.consensus_prompt == "consensus_check"
-        assert adapter.synthesizer_prompt == "synthesizer"
-        assert adapter.output_dir == Path("/tmp/prizms")
+        assert config.max_rounds == 3
+        assert config.consensus_prompt == "consensus_check"
+        assert config.synthesizer_prompt == "synthesizer"
+        assert config.output_dir == Path("/tmp/prizms")
+
+    def test_returns_frozen_config(self):
+        """Should return an immutable DebateConfig."""
+        debate = create_mock_debate()
+        
+        with patch("modules.debates.state_builder.get_api_key_for_provider", return_value=""):
+            config = build_debate_config(debate)
+        
+        # DebateConfig is frozen - should raise on mutation
+        with pytest.raises(Exception):
+            config.models = {}
 
 
 class TestBuildInitialState:
@@ -230,8 +196,8 @@ class TestBuildInitialState:
         assert "consensus_check" not in state["personalities"]
         assert "synthesizer" not in state["personalities"]
 
-    def test_creates_config_adapter(self):
-        """Should create an APIConfigAdapter for the state."""
+    def test_creates_debate_config(self):
+        """Should create a DebateConfig for the state."""
         debate = create_mock_debate()
         providers = {}
         
@@ -239,5 +205,8 @@ class TestBuildInitialState:
             state = build_initial_state(debate, providers)
         
         config = state["config"]
-        assert isinstance(config, APIConfigAdapter)
-        assert config.debate == debate
+        assert isinstance(config, DebateConfig)
+        # Verify the config has the expected values
+        assert config.max_rounds == debate.max_rounds
+        assert "critic" in config.personalities
+        assert "default" in config.models

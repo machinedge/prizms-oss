@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     enable_usage_tracking: bool = True
     enable_billing: bool = True
 
+    # Debate Engine Defaults
+    default_max_rounds: int = 3
+    prompts_dir: str = "prompts"
+
 
 @lru_cache
 def get_settings() -> Settings:

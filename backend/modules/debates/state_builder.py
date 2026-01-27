@@ -6,11 +6,11 @@ LangGraph DebateState format expected by core/graph.py.
 """
 
 from pathlib import Path
-from dataclasses import dataclass
 
 from core.graph import DebateState
 from providers.base import ModelConfig, LLMProvider
 from shared.config import get_settings
+from shared.debate_config import DebateConfig, DebateSettings, PersonalityConfig
 
 from .models import Debate, SYSTEM_PERSONALITIES
 
@@ -36,105 +36,60 @@ def get_api_key_for_provider(provider: str) -> str:
     return api_key_map.get(provider, "")
 
 
-@dataclass
-class APIPersonalityConfig:
-    """Minimal PersonalityConfig adapter for API-based debates.
-    
-    Bridges the API's simple personality name to the format
-    expected by core/nodes.py.
+def build_debate_config(debate: Debate) -> DebateConfig:
     """
-    name: str
-    prompt_path: Path
-    model_name: str
-
-
-@dataclass 
-class APIDebateSettings:
-    """Minimal DebateSettings adapter for API-based debates."""
-    output_dir: Path
-    max_rounds: int
-    consensus_prompt: str = "consensus_check"
-    synthesizer_prompt: str = "synthesizer"
-
-
-class APIConfigAdapter:
+    Build a DebateConfig from an API Debate model.
+    
+    This creates the unified config format expected by the core debate engine.
+    
+    Args:
+        debate: The API Debate model
+        
+    Returns:
+        DebateConfig ready for use by core/nodes.py
     """
-    Adapts an API Debate model to the Config interface expected by core/nodes.py.
+    # Create the single model config for this debate
+    model_config = ModelConfig(
+        model_name="default",
+        provider_type=debate.provider,
+        model_id=debate.model,
+        api_base="",
+        api_key=get_api_key_for_provider(debate.provider),
+    )
     
-    This creates a Config-like object that:
-    - Maps personality names to prompt file paths
-    - Creates a single model config using the debate's provider/model
-    - Provides the same interface as core.config.Config
-    """
+    # Build personality configs for all personalities
+    personalities: dict[str, PersonalityConfig] = {}
     
-    def __init__(self, debate: Debate, providers: dict[str, LLMProvider]):
-        self.debate = debate
-        self._providers = providers
-        self._model_config = self._build_model_config()
-        self._personalities = self._build_personalities()
-        self._models = {"default": self._model_config}
-        self.debate_settings = APIDebateSettings(
-            output_dir=Path("/tmp/prizms"),
-            max_rounds=debate.max_rounds,
-        )
-    
-    def _build_model_config(self) -> ModelConfig:
-        """Build a ModelConfig from debate settings."""
-        return ModelConfig(
+    # Add debate personalities
+    for name in debate.settings.personalities:
+        prompt_path = PROMPTS_DIR / f"{name}.txt"
+        personalities[name] = PersonalityConfig(
+            name=name,
+            prompt_path=prompt_path,
             model_name="default",
-            provider_type=self.debate.provider,
-            model_id=self.debate.model,
-            api_base="",
-            api_key=get_api_key_for_provider(self.debate.provider),
         )
     
-    def _build_personalities(self) -> dict[str, APIPersonalityConfig]:
-        """Build personality configs from debate settings."""
-        personalities = {}
-        
-        # Add debate personalities
-        for name in self.debate.settings.personalities:
-            prompt_path = PROMPTS_DIR / f"{name}.txt"
-            personalities[name] = APIPersonalityConfig(
-                name=name,
-                prompt_path=prompt_path,
-                model_name="default",
-            )
-        
-        # Add system personalities (consensus_check, synthesizer)
-        for sys_name in ["consensus_check", "synthesizer"]:
+    # Add system personalities (consensus_check, synthesizer)
+    for sys_name in ["consensus_check", "synthesizer"]:
+        if sys_name not in personalities:
             prompt_path = PROMPTS_DIR / f"{sys_name}.txt"
-            personalities[sys_name] = APIPersonalityConfig(
+            personalities[sys_name] = PersonalityConfig(
                 name=sys_name,
                 prompt_path=prompt_path,
                 model_name="default",
             )
-        
-        return personalities
     
-    @property
-    def personalities(self) -> dict[str, APIPersonalityConfig]:
-        return self._personalities
+    # Create debate settings
+    debate_settings = DebateSettings(
+        output_dir=Path("/tmp/prizms"),
+        max_rounds=debate.max_rounds,
+    )
     
-    @property
-    def models(self) -> dict[str, ModelConfig]:
-        return self._models
-    
-    @property
-    def output_dir(self) -> Path:
-        return self.debate_settings.output_dir
-    
-    @property
-    def max_rounds(self) -> int:
-        return self.debate_settings.max_rounds
-    
-    @property
-    def consensus_prompt(self) -> str:
-        return self.debate_settings.consensus_prompt
-    
-    @property
-    def synthesizer_prompt(self) -> str:
-        return self.debate_settings.synthesizer_prompt
+    return DebateConfig(
+        debate_settings=debate_settings,
+        models={"default": model_config},
+        personalities=personalities,
+    )
 
 
 def build_initial_state(
@@ -157,12 +112,12 @@ def build_initial_state(
         if p not in SYSTEM_PERSONALITIES
     ]
     
-    config_adapter = APIConfigAdapter(debate, providers)
+    config = build_debate_config(debate)
     
     return {
         "question": debate.question,
         "personalities": debate_personalities,
-        "config": config_adapter,  # type: ignore - adapter provides same interface
+        "config": config,
         "providers": providers,
         "max_rounds": debate.max_rounds,
         "current_round": 0,

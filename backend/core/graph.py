@@ -14,8 +14,10 @@ from typing import Annotated, Any, TypedDict
 from langgraph.graph import END, StateGraph
 
 from providers.base import LLMProvider, ModelConfig
+from shared.debate_config import DebateConfig, PersonalityConfig
 
-from .config import Config, PersonalityConfig
+# Type alias for backward compatibility
+Config = DebateConfig
 
 
 class DebateState(TypedDict):
@@ -27,7 +29,7 @@ class DebateState(TypedDict):
 
     question: str
     personalities: list[str]  # List of personality names participating in debate
-    config: Config  # Full configuration object
+    config: DebateConfig  # Full configuration object (from shared.debate_config)
     providers: dict[str, LLMProvider]  # Provider instances by type
     max_rounds: int  # Safety limit
     current_round: int  # Counter
