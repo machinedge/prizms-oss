@@ -1,20 +1,26 @@
 """Tests for debates module interfaces."""
 
 import pytest
+from unittest.mock import MagicMock
 
 from modules.debates.interfaces import IDebateService
 from modules.debates.service import DebateService
 
 
 class TestIDebateService:
-    def test_protocol_is_runtime_checkable(self):
+    @pytest.fixture
+    def mock_supabase(self):
+        """Create a mock Supabase client."""
+        return MagicMock()
+
+    def test_protocol_is_runtime_checkable(self, mock_supabase):
         """Should be able to check if instance implements protocol."""
-        service = DebateService()
+        service = DebateService(supabase_client=mock_supabase)
         assert isinstance(service, IDebateService)
 
-    def test_debate_service_implements_interface(self):
+    def test_debate_service_implements_interface(self, mock_supabase):
         """DebateService should implement all interface methods."""
-        service = DebateService()
+        service = DebateService(supabase_client=mock_supabase)
 
         # Check all required methods exist
         assert hasattr(service, "create_debate")
@@ -32,20 +38,18 @@ class TestIDebateService:
         assert callable(service.cancel_debate)
         assert callable(service.delete_debate)
 
-    def test_interface_with_dependencies(self):
+    def test_interface_with_dependencies(self, mock_supabase):
         """Should accept optional dependencies."""
         # Mock dependencies
         mock_auth = object()
-        mock_billing = object()
         mock_usage = object()
 
         service = DebateService(
+            supabase_client=mock_supabase,
             auth=mock_auth,
-            billing=mock_billing,
             usage=mock_usage,
         )
 
         assert service._auth is mock_auth
-        assert service._billing is mock_billing
         assert service._usage is mock_usage
         assert isinstance(service, IDebateService)

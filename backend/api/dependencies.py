@@ -76,15 +76,13 @@ class ServiceContainer:
     def debates(self) -> Any:  # TODO: Return type should be "IDebateService"
         """Get the debate service instance."""
         if self._debate_service is None:
-            # TODO: Implement in Story 13
-            # from modules.debates.service import DebateService
-            # self._debate_service = DebateService(
-            #     auth=self.auth,
-            #     billing=self.billing,
-            #     usage=self.usage,
-            # )
-            raise NotImplementedError(
-                "DebateService not yet implemented. See Story 13."
+            from modules.debates.service import DebateService
+            from shared.database import get_supabase_client
+
+            self._debate_service = DebateService(
+                supabase_client=get_supabase_client(),
+                auth=None,   # Will be wired in future stories
+                usage=None,  # Will be wired in future stories
             )
         return self._debate_service
 
