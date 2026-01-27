@@ -261,3 +261,143 @@ class TestUsageTracker:
             
             mock_get.assert_called_once()
             assert tracker._usage_service == mock_service
+
+    @pytest.mark.asyncio
+    async def test_record_personality_usage_with_usage_metadata(self, mock_usage_service):
+        """Should use actual usage metadata when provided."""
+        tracker = UsageTracker(
+            user_id="user-123",
+            debate_id="debate-123",
+            provider="anthropic",
+            model="claude-sonnet-4-5",
+            usage_service=mock_usage_service,
+        )
+        
+        usage_metadata = {
+            "input_tokens": 150,
+            "output_tokens": 350,
+        }
+        
+        await tracker.record_personality_usage(
+            personality="critic",
+            round_number=1,
+            question="Test?",
+            full_content="Response",
+            usage_metadata=usage_metadata,
+        )
+        
+        # Verify actual metadata was passed to service
+        call_args = mock_usage_service.record_usage.call_args
+        usage_record = call_args.kwargs["record"]
+        assert usage_record.input_tokens == 150
+        assert usage_record.output_tokens == 350
+
+    @pytest.mark.asyncio
+    async def test_record_personality_usage_falls_back_to_estimation(self, mock_usage_service):
+        """Should fall back to estimation when usage_metadata is None."""
+        tracker = UsageTracker(
+            user_id="user-123",
+            debate_id="debate-123",
+            provider="anthropic",
+            model="claude-sonnet-4-5",
+            usage_service=mock_usage_service,
+        )
+        
+        with patch("modules.debates.usage_tracker.estimate_input_tokens", return_value=250) as mock_estimate:
+            with patch("modules.debates.usage_tracker.count_tokens", return_value=100):
+                await tracker.record_personality_usage(
+                    personality="critic",
+                    round_number=1,
+                    question="Test?",
+                    full_content="Response",
+                    usage_metadata=None,
+                )
+        
+        # Verify estimation was used
+        mock_estimate.assert_called_once()
+        call_args = mock_usage_service.record_usage.call_args
+        usage_record = call_args.kwargs["record"]
+        assert usage_record.input_tokens == 250
+        assert usage_record.output_tokens == 100
+
+    @pytest.mark.asyncio
+    async def test_record_personality_usage_falls_back_when_empty_metadata(self, mock_usage_service):
+        """Should fall back to estimation when usage_metadata has no tokens."""
+        tracker = UsageTracker(
+            user_id="user-123",
+            debate_id="debate-123",
+            provider="anthropic",
+            model="claude-sonnet-4-5",
+            usage_service=mock_usage_service,
+        )
+        
+        # Empty dict or zero tokens should trigger fallback
+        usage_metadata = {"input_tokens": 0}
+        
+        with patch("modules.debates.usage_tracker.estimate_input_tokens", return_value=200):
+            with patch("modules.debates.usage_tracker.count_tokens", return_value=50):
+                await tracker.record_personality_usage(
+                    personality="critic",
+                    round_number=1,
+                    question="Test?",
+                    full_content="Response",
+                    usage_metadata=usage_metadata,
+                )
+        
+        # Verify estimation was used
+        call_args = mock_usage_service.record_usage.call_args
+        usage_record = call_args.kwargs["record"]
+        assert usage_record.input_tokens == 200  # From estimate_input_tokens
+
+    @pytest.mark.asyncio
+    async def test_record_synthesis_usage_with_usage_metadata(self, mock_usage_service):
+        """Should use actual usage metadata for synthesis when provided."""
+        tracker = UsageTracker(
+            user_id="user-123",
+            debate_id="debate-123",
+            provider="anthropic",
+            model="claude-sonnet-4-5",
+            usage_service=mock_usage_service,
+        )
+        
+        usage_metadata = {
+            "input_tokens": 800,
+            "output_tokens": 200,
+        }
+        
+        await tracker.record_synthesis_usage(
+            full_content="Synthesis content",
+            usage_metadata=usage_metadata,
+        )
+        
+        # Verify actual metadata was passed to service
+        call_args = mock_usage_service.record_usage.call_args
+        usage_record = call_args.kwargs["record"]
+        assert usage_record.input_tokens == 800
+        assert usage_record.output_tokens == 200
+
+    @pytest.mark.asyncio
+    async def test_record_synthesis_usage_falls_back_to_estimation(self, mock_usage_service):
+        """Should fall back to estimation for synthesis when usage_metadata is None."""
+        tracker = UsageTracker(
+            user_id="user-123",
+            debate_id="debate-123",
+            provider="anthropic",
+            model="claude-sonnet-4-5",
+            usage_service=mock_usage_service,
+        )
+        
+        # Simulate prior output tokens
+        tracker._totals.output_tokens = 500
+        
+        with patch("modules.debates.usage_tracker.count_tokens", return_value=150):
+            await tracker.record_synthesis_usage(
+                full_content="Synthesis content",
+                usage_metadata=None,
+            )
+        
+        # Verify estimation was used (prior output + 500 overhead)
+        call_args = mock_usage_service.record_usage.call_args
+        usage_record = call_args.kwargs["record"]
+        assert usage_record.input_tokens == 1000  # 500 prior + 500 overhead
+        assert usage_record.output_tokens == 150

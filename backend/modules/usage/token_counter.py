@@ -121,6 +121,53 @@ def estimate_output_tokens(content: str, model: str = "gpt-4") -> int:
     return count_tokens(content, model)
 
 
+def estimate_input_tokens(
+    question: str,
+    system_prompt: str = "",
+    prior_context: str = "",
+    model: str = "gpt-4",
+    default_system_overhead: int = 200,
+) -> int:
+    """
+    Estimate input tokens for an LLM call.
+
+    Used as a fallback when actual usage metadata is not available from
+    the LLM API response. Estimates tokens based on the content that would
+    be sent to the model.
+
+    Args:
+        question: The user question or content
+        system_prompt: The system prompt (if empty, uses default overhead)
+        prior_context: Any prior context included in the prompt
+        model: Model name for tokenizer selection
+        default_system_overhead: Default tokens to assume for system prompt
+                                if not provided
+
+    Returns:
+        Estimated input token count
+    """
+    total = 0
+
+    # Count question tokens
+    total += count_tokens(question, model)
+
+    # Count system prompt tokens or use default overhead
+    if system_prompt:
+        total += count_tokens(system_prompt, model)
+    else:
+        total += default_system_overhead
+
+    # Count prior context tokens
+    if prior_context:
+        total += count_tokens(prior_context, model)
+
+    # Add message formatting overhead (system + user message structure)
+    # Each message has ~4 tokens overhead, plus 2 for assistant priming
+    total += 10
+
+    return total
+
+
 def reset_encoder_cache() -> None:
     """Reset the encoder cache (for testing)."""
     global _encoders

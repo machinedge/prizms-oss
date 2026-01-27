@@ -3,18 +3,25 @@
 These nodes use LangGraph's streaming system:
 - LLM tokens stream automatically via stream_mode="messages"
 - Custom events (round_started, personality_completed, etc.) via get_stream_writer()
+
+Usage tracking is handled via LangChain callbacks that capture actual token
+counts from LLM API responses when available.
 """
 
 import asyncio
 import json
+import logging
 import re
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.config import get_stream_writer
 
+from modules.usage.callback import StreamingUsageTracker, UsageTrackingCallback
 from providers.base import LLMProvider, ModelConfig
 from shared.debate_config import DebateConfig, PersonalityConfig, load_prompt
+
+logger = logging.getLogger(__name__)
 
 # Type alias for backward compatibility
 Config = DebateConfig
@@ -74,12 +81,14 @@ async def stream_personality(
     config: Config,
     providers: dict[str, LLMProvider],
     buffers: dict[str, str],
+    usage_results: dict[str, dict[str, int]],
     instance: int | None = None,
 ) -> tuple[str, str]:
     """Stream LLM response for a personality.
 
     LLM tokens are automatically streamed via LangGraph's stream_mode="messages".
-    This function accumulates the full response for state updates.
+    This function accumulates the full response for state updates and captures
+    usage metadata via callbacks.
 
     Args:
         personality_name: Name of the personality
@@ -88,6 +97,7 @@ async def stream_personality(
         config: Full configuration object
         providers: Dictionary of provider instances by type
         buffers: Shared dict for accumulating streamed content
+        usage_results: Shared dict for storing usage metadata per personality
         instance: Optional instance number for providers that require
                  separate instances for parallel execution (e.g., LM Studio).
 
@@ -109,11 +119,32 @@ async def stream_personality(
     ]
 
     buffers[personality_name] = ""
+    
+    # Create usage tracker for this LLM call
+    usage_tracker = StreamingUsageTracker()
 
-    # Stream via LangChain - tokens automatically stream with stream_mode="messages"
-    async for chunk in llm.astream(messages):
+    # Stream via LangChain with callback for usage tracking
+    config_dict = {"callbacks": [usage_tracker.callback]}
+    async for chunk in llm.astream(messages, config=config_dict):
         if chunk.content:
             buffers[personality_name] += chunk.content
+        # Process chunk for usage metadata (typically on final chunk)
+        usage_tracker.process_chunk(chunk)
+
+    # Store usage metadata for this personality
+    input_tokens, output_tokens = usage_tracker.get_usage()
+    if input_tokens > 0 or output_tokens > 0:
+        usage_results[personality_name] = {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        }
+        logger.debug(
+            f"Captured usage for {personality_name}: "
+            f"input={input_tokens}, output={output_tokens}"
+        )
+    else:
+        # No usage metadata from API - will fall back to estimation
+        usage_results[personality_name] = {}
 
     return (personality_name, buffers[personality_name])
 
@@ -159,6 +190,9 @@ async def debate_round(state: dict) -> dict:
     streamed via LangGraph's stream_mode="messages". Custom events are emitted
     via get_stream_writer() for SSE streaming.
 
+    Usage metadata from LLM API responses is captured and included in
+    personality_completed events.
+
     Args:
         state: Current debate state
 
@@ -187,6 +221,7 @@ async def debate_round(state: dict) -> dict:
     })
 
     buffers: dict[str, str] = {}
+    usage_results: dict[str, dict[str, int]] = {}
 
     # Compute per-provider instance numbers for LM Studio parallel execution
     instance_map = _compute_provider_instances(personalities, config)
@@ -208,6 +243,7 @@ async def debate_round(state: dict) -> dict:
             config,
             providers,
             buffers,
+            usage_results,
             instance=instance_map[p],
         )
         for p in personalities
@@ -215,14 +251,18 @@ async def debate_round(state: dict) -> dict:
     results = await asyncio.gather(*tasks)
     responses = dict(results)
 
-    # Emit personality_completed events
+    # Emit personality_completed events with usage metadata
     for personality, response in responses.items():
-        writer({
+        event_data = {
             "type": "personality_completed",
             "round_number": round_num,
             "personality": personality,
             "response_length": len(response),
-        })
+        }
+        # Include usage metadata if captured from LLM API
+        if personality in usage_results and usage_results[personality]:
+            event_data["usage_metadata"] = usage_results[personality]
+        writer(event_data)
 
     # Emit round_completed custom event
     writer({
@@ -307,9 +347,24 @@ Respond with JSON only: {"consensus": true/false, "reasoning": "brief explanatio
         "checking": True,
     })
 
-    # Async invoke for consensus check
-    response = await llm.ainvoke(messages)
+    # Async invoke for consensus check with usage tracking callback
+    usage_callback = UsageTrackingCallback()
+    config_dict = {"callbacks": [usage_callback]}
+    response = await llm.ainvoke(messages, config=config_dict)
     content = response.content
+    
+    # Capture usage metadata from callback
+    input_tokens, output_tokens = usage_callback.get_usage()
+    usage_metadata = None
+    if input_tokens > 0 or output_tokens > 0:
+        usage_metadata = {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        }
+        logger.debug(
+            f"Captured consensus check usage: "
+            f"input={input_tokens}, output={output_tokens}"
+        )
 
     # Parse JSON response
     try:
@@ -326,12 +381,15 @@ Respond with JSON only: {"consensus": true/false, "reasoning": "brief explanatio
         consensus = False
         reasoning = f"Invalid JSON in response: {content[:200]}"
 
-    writer({
+    consensus_result_event = {
         "type": "consensus_result",
         "round_number": current_round_num,
         "consensus_reached": consensus,
         "reasoning": reasoning,
-    })
+    }
+    if usage_metadata:
+        consensus_result_event["usage_metadata"] = usage_metadata
+    writer(consensus_result_event)
 
     return {
         "consensus_reached": consensus,
@@ -402,15 +460,35 @@ async def synthesize(state: dict) -> dict:
         HumanMessage(content="".join(context_parts)),
     ]
 
-    # Stream the synthesis - tokens auto-stream via stream_mode="messages"
+    # Stream the synthesis with usage tracking
+    usage_tracker = StreamingUsageTracker()
+    config_dict = {"callbacks": [usage_tracker.callback]}
+    
     full_response = ""
-    async for chunk in llm.astream(messages):
+    async for chunk in llm.astream(messages, config=config_dict):
         if chunk.content:
             full_response += chunk.content
+        usage_tracker.process_chunk(chunk)
 
-    writer({
+    # Capture usage metadata
+    input_tokens, output_tokens = usage_tracker.get_usage()
+    usage_metadata = None
+    if input_tokens > 0 or output_tokens > 0:
+        usage_metadata = {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        }
+        logger.debug(
+            f"Captured synthesis usage: "
+            f"input={input_tokens}, output={output_tokens}"
+        )
+
+    synthesis_event = {
         "type": "synthesis_completed",
         "content_length": len(full_response),
-    })
+    }
+    if usage_metadata:
+        synthesis_event["usage_metadata"] = usage_metadata
+    writer(synthesis_event)
 
     return {"final_synthesis": full_response}

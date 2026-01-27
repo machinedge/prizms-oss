@@ -42,6 +42,12 @@ from .token_counter import (
     count_tokens,
     count_message_tokens,
     estimate_output_tokens,
+    estimate_input_tokens,
+)
+from .callback import (
+    UsageMetadata,
+    UsageTrackingCallback,
+    StreamingUsageTracker,
 )
 
 __all__ = [
@@ -73,4 +79,9 @@ __all__ = [
     "count_tokens",
     "count_message_tokens",
     "estimate_output_tokens",
+    "estimate_input_tokens",
+    # Callbacks
+    "UsageMetadata",
+    "UsageTrackingCallback",
+    "StreamingUsageTracker",
 ]

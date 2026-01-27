@@ -6,6 +6,7 @@ from modules.usage.token_counter import (
     count_tokens,
     count_message_tokens,
     estimate_output_tokens,
+    estimate_input_tokens,
     get_encoder,
     reset_encoder_cache,
 )
@@ -149,3 +150,95 @@ class TestResetEncoderCache:
         
         # Internal cache should be empty
         assert len(token_counter._encoders) == 0
+
+
+class TestEstimateInputTokens:
+    """Tests for estimate_input_tokens function."""
+
+    def test_counts_question_tokens(self):
+        """Should count tokens in question."""
+        result = estimate_input_tokens("Hello, how are you?")
+        question_tokens = count_tokens("Hello, how are you?")
+        # Result includes question + default overhead (200) + message overhead (10)
+        assert result == question_tokens + 200 + 10
+
+    def test_uses_system_prompt_tokens_when_provided(self):
+        """Should use actual system prompt tokens instead of default."""
+        question = "What is 2+2?"
+        system_prompt = "You are a math tutor."
+        
+        result = estimate_input_tokens(question, system_prompt=system_prompt)
+        
+        expected = (
+            count_tokens(question) +
+            count_tokens(system_prompt) +
+            10  # Message overhead
+        )
+        assert result == expected
+
+    def test_adds_prior_context_tokens(self):
+        """Should add tokens for prior context."""
+        question = "What is 2+2?"
+        prior_context = "In the previous round, we discussed addition."
+        
+        result = estimate_input_tokens(question, prior_context=prior_context)
+        
+        expected = (
+            count_tokens(question) +
+            200 +  # Default system overhead
+            count_tokens(prior_context) +
+            10  # Message overhead
+        )
+        assert result == expected
+
+    def test_combines_all_components(self):
+        """Should combine question, system prompt, and context."""
+        question = "What is the meaning of life?"
+        system_prompt = "You are a philosopher."
+        prior_context = "Previous perspectives discussed happiness."
+        
+        result = estimate_input_tokens(
+            question,
+            system_prompt=system_prompt,
+            prior_context=prior_context,
+        )
+        
+        expected = (
+            count_tokens(question) +
+            count_tokens(system_prompt) +
+            count_tokens(prior_context) +
+            10  # Message overhead
+        )
+        assert result == expected
+
+    def test_accepts_custom_default_overhead(self):
+        """Should accept custom default system overhead."""
+        question = "Test"
+        
+        result = estimate_input_tokens(
+            question,
+            default_system_overhead=500,
+        )
+        
+        expected = count_tokens(question) + 500 + 10
+        assert result == expected
+
+    def test_accepts_model_parameter(self):
+        """Should accept model parameter for tokenizer."""
+        question = "Test"
+        
+        # Should work without error for different models
+        estimate_input_tokens(question, model="gpt-4")
+        estimate_input_tokens(question, model="claude-3-5-sonnet")
+        estimate_input_tokens(question, model="gemini-1.5-pro")
+
+    def test_empty_question_returns_overhead_only(self):
+        """Empty question should return just overhead."""
+        result = estimate_input_tokens("")
+        # Default overhead (200) + message overhead (10)
+        assert result == 210
+
+    def test_returns_integer(self):
+        """Should return an integer."""
+        result = estimate_input_tokens("Test question")
+        assert isinstance(result, int)

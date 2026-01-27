@@ -172,15 +172,19 @@ class EventMapper:
         personality = data.get("personality", "")
         full_content = self.streaming_buffers.get(personality, "")
         
+        # Extract usage metadata from event (captured by callback in nodes.py)
+        usage_metadata = data.get("usage_metadata")
+        
         # Parse thinking vs answer content
         thinking_content, answer_content = split_cot_and_answer(full_content)
         
-        # Record usage via tracker
+        # Record usage via tracker (with actual usage if available)
         usage_record = await self.usage_tracker.record_personality_usage(
             personality=personality,
             round_number=self.current_round_num,
             question=self.question,
             full_content=full_content,
+            usage_metadata=usage_metadata,
         )
         
         # Build response model
@@ -274,9 +278,13 @@ class EventMapper:
         """Handle synthesis_completed event."""
         full_content = self.streaming_buffers.get("synthesizer", "")
         
-        # Record usage via tracker
+        # Extract usage metadata from event (captured by callback in nodes.py)
+        usage_metadata = data.get("usage_metadata")
+        
+        # Record usage via tracker (with actual usage if available)
         usage_record = await self.usage_tracker.record_synthesis_usage(
             full_content=full_content,
+            usage_metadata=usage_metadata,
         )
         
         # Persist synthesis
