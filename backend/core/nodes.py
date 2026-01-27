@@ -9,17 +9,18 @@ counts from LLM API responses when available.
 """
 
 import asyncio
-import json
 import logging
-import re
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.output_parsers import JsonOutputParser
 from langgraph.config import get_stream_writer
 
 from modules.usage.callback import StreamingUsageTracker, UsageTrackingCallback
 from providers.base import LLMProvider, ModelConfig
 from shared.debate_config import DebateConfig, PersonalityConfig, load_prompt
+
+from .models import ConsensusResult
 
 logger = logging.getLogger(__name__)
 
@@ -330,15 +331,25 @@ Respond with JSON only: {"consensus": true/false, "reasoning": "brief explanatio
         provider = providers[first_model.provider_type]
         llm = provider.get_llm(first_model)
 
+    # Create parser for structured output
+    parser = JsonOutputParser(pydantic_object=ConsensusResult)
+    format_instructions = parser.get_format_instructions()
+
     # Format responses for analysis
     response_text = "\n\n".join(
         f"**{p.replace('_', ' ').title()}**: {r}"
         for p, r in current_round.items()
     )
 
+    # Build message with format instructions appended
+    user_content = (
+        f"Analyze these responses for consensus:\n\n{response_text}\n\n"
+        f"{format_instructions}"
+    )
+
     messages = [
         SystemMessage(content=consensus_prompt_text),
-        HumanMessage(content=f"Analyze these responses for consensus:\n\n{response_text}"),
+        HumanMessage(content=user_content),
     ]
 
     writer({
@@ -366,20 +377,15 @@ Respond with JSON only: {"consensus": true/false, "reasoning": "brief explanatio
             f"input={input_tokens}, output={output_tokens}"
         )
 
-    # Parse JSON response
-    try:
-        # Try to extract JSON from the response
-        json_match = re.search(r'\{[^}]+\}', content)
-        if json_match:
-            result = json.loads(json_match.group())
-            consensus = result.get("consensus", False)
-            reasoning = result.get("reasoning", "No reasoning provided")
-        else:
-            consensus = False
-            reasoning = f"Could not parse response: {content[:200]}"
-    except json.JSONDecodeError:
-        consensus = False
-        reasoning = f"Invalid JSON in response: {content[:200]}"
+    # Parse JSON response using LangChain's JsonOutputParser
+    # Raises OutputParserException on parse failure, which propagates to stream adapter
+    parsed_dict = parser.parse(content)
+    
+    # Validate with Pydantic model to ensure proper types
+    # Raises ValidationError if fields are missing or wrong type
+    validated_result = ConsensusResult(**parsed_dict)
+    consensus = validated_result.consensus
+    reasoning = validated_result.reasoning
 
     consensus_result_event = {
         "type": "consensus_result",

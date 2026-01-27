@@ -12,7 +12,4 @@ Consider consensus NOT reached when:
 - Critical concerns from one perspective are dismissed or ignored by others
 - The discussion has surfaced new issues that haven't been addressed
 
-Analyze the responses provided and respond with ONLY a JSON object in this format:
-{"consensus": true, "reasoning": "Brief explanation of why consensus was or was not reached"}
-
-Do not include any text before or after the JSON object.
+Analyze the responses provided and determine whether consensus has been reached.

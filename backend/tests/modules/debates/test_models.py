@@ -351,3 +351,193 @@ class TestDebateEvent:
         )
         sse = event.to_sse()
         assert "0.0125" in sse
+
+
+# ============================================================================
+# Story 25: ConsensusResult and JsonOutputParser Tests
+# ============================================================================
+
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.exceptions import OutputParserException
+from core.models import ConsensusResult
+
+
+class TestConsensusResult:
+    """Tests for the ConsensusResult Pydantic model."""
+
+    def test_consensus_result_with_true(self):
+        """Should create result with consensus=True."""
+        result = ConsensusResult(
+            consensus=True,
+            reasoning="All parties agree on the main points.",
+        )
+        assert result.consensus is True
+        assert result.reasoning == "All parties agree on the main points."
+
+    def test_consensus_result_with_false(self):
+        """Should create result with consensus=False."""
+        result = ConsensusResult(
+            consensus=False,
+            reasoning="Fundamental disagreement on approach.",
+        )
+        assert result.consensus is False
+        assert result.reasoning == "Fundamental disagreement on approach."
+
+    def test_consensus_result_requires_consensus_field(self):
+        """Should require consensus field."""
+        with pytest.raises(ValueError):
+            ConsensusResult(reasoning="Missing consensus field")
+
+    def test_consensus_result_requires_reasoning_field(self):
+        """Should require reasoning field."""
+        with pytest.raises(ValueError):
+            ConsensusResult(consensus=True)
+
+    def test_consensus_result_validates_consensus_type(self):
+        """Should validate that consensus is a boolean."""
+        # Pydantic will coerce "true" string to True boolean
+        result = ConsensusResult(consensus="true", reasoning="Test")
+        assert result.consensus is True
+        
+        # Non-boolean-coercible values should fail
+        with pytest.raises(ValueError):
+            ConsensusResult(consensus="maybe", reasoning="Test")
+
+
+class TestJsonOutputParserWithConsensusResult:
+    """Tests for JsonOutputParser integration with ConsensusResult."""
+
+    def test_parser_with_valid_json_consensus_true(self):
+        """Should parse valid JSON with consensus=true."""
+        parser = JsonOutputParser(pydantic_object=ConsensusResult)
+        json_str = '{"consensus": true, "reasoning": "All perspectives align."}'
+        
+        result = parser.parse(json_str)
+        
+        assert result["consensus"] is True
+        assert result["reasoning"] == "All perspectives align."
+
+    def test_parser_with_valid_json_consensus_false(self):
+        """Should parse valid JSON with consensus=false."""
+        parser = JsonOutputParser(pydantic_object=ConsensusResult)
+        json_str = '{"consensus": false, "reasoning": "Major disagreements remain."}'
+        
+        result = parser.parse(json_str)
+        
+        assert result["consensus"] is False
+        assert result["reasoning"] == "Major disagreements remain."
+
+    def test_parser_with_json_in_markdown_code_block(self):
+        """Should parse JSON embedded in markdown code block."""
+        parser = JsonOutputParser(pydantic_object=ConsensusResult)
+        response = '''Based on my analysis:
+
+```json
+{"consensus": true, "reasoning": "Parties reached agreement."}
+```
+
+That's my assessment.'''
+        
+        result = parser.parse(response)
+        
+        assert result["consensus"] is True
+        assert result["reasoning"] == "Parties reached agreement."
+
+    def test_parser_with_extra_whitespace(self):
+        """Should handle JSON with extra whitespace."""
+        parser = JsonOutputParser(pydantic_object=ConsensusResult)
+        json_str = '''
+        {
+            "consensus": false,
+            "reasoning": "Significant differences exist."
+        }
+        '''
+        
+        result = parser.parse(json_str)
+        
+        assert result["consensus"] is False
+
+    def test_parser_raises_on_invalid_json(self):
+        """Should raise OutputParserException on invalid JSON."""
+        parser = JsonOutputParser(pydantic_object=ConsensusResult)
+        invalid_json = "This is not valid JSON at all"
+        
+        with pytest.raises(OutputParserException):
+            parser.parse(invalid_json)
+
+    def test_parser_returns_dict_even_with_missing_field(self):
+        """JsonOutputParser returns dict without Pydantic validation.
+        
+        Note: JsonOutputParser only parses JSON, it does not validate
+        against the Pydantic model. Validation happens when the dict
+        is used to create the Pydantic model.
+        """
+        parser = JsonOutputParser(pydantic_object=ConsensusResult)
+        incomplete_json = '{"consensus": true}'  # Missing reasoning
+        
+        # Parser returns dict without validation
+        result = parser.parse(incomplete_json)
+        assert result == {"consensus": True}
+        
+        # Pydantic validation fails when creating model
+        with pytest.raises(ValueError):
+            ConsensusResult(**result)
+
+    def test_parser_returns_dict_with_wrong_field_type(self):
+        """JsonOutputParser returns dict without type coercion.
+        
+        Note: JsonOutputParser only parses JSON to dict, type coercion
+        happens when creating the Pydantic model.
+        Pydantic coerces "yes"/"no"/"true"/"false" to bool, but not arbitrary strings.
+        """
+        parser = JsonOutputParser(pydantic_object=ConsensusResult)
+        wrong_type_json = '{"consensus": "maybe", "reasoning": "Test"}'
+        
+        # Parser returns dict
+        result = parser.parse(wrong_type_json)
+        assert result["consensus"] == "maybe"  # Still a string
+        
+        # Pydantic validation fails - "maybe" cannot be coerced to boolean
+        with pytest.raises(ValueError):
+            ConsensusResult(**result)
+
+    def test_parser_format_instructions(self):
+        """Should provide format instructions for the LLM."""
+        parser = JsonOutputParser(pydantic_object=ConsensusResult)
+        instructions = parser.get_format_instructions()
+        
+        # Should mention JSON format
+        assert "json" in instructions.lower() or "JSON" in instructions
+        # Should mention the expected fields
+        assert "consensus" in instructions
+        assert "reasoning" in instructions
+
+    def test_parser_requires_clean_json_or_code_block(self):
+        """Parser fails when JSON has surrounding text without code block.
+        
+        JsonOutputParser requires either:
+        1. Pure JSON string
+        2. JSON inside a markdown code block (```json ... ```)
+        
+        It does NOT extract JSON from surrounding prose text.
+        """
+        parser = JsonOutputParser(pydantic_object=ConsensusResult)
+        response = '''After careful analysis:
+
+{"consensus": false, "reasoning": "Disagreements remain."}
+
+That's my assessment.'''
+        
+        # Parser fails on text with surrounding prose
+        with pytest.raises(OutputParserException):
+            parser.parse(response)
+
+    def test_parser_with_json_only_response(self):
+        """Should parse response that is pure JSON."""
+        parser = JsonOutputParser(pydantic_object=ConsensusResult)
+        response = '{"consensus": false, "reasoning": "Fundamental differences in approach remain."}'
+        
+        result = parser.parse(response)
+        
+        assert result["consensus"] is False
+        assert "fundamental differences" in result["reasoning"].lower()
