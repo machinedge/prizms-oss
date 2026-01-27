@@ -8,7 +8,7 @@ import pytest
 from datetime import datetime, timezone, timedelta
 import jwt  # PyJWT
 
-from modules.auth.service import reset_auth_service
+from api.dependencies import reset_container
 
 
 # Test JWT secret (only for testing - matches test_auth.py)
@@ -49,11 +49,11 @@ def create_test_token(
 
 
 @pytest.fixture(autouse=True)
-def reset_auth_singleton():
-    """Reset the auth service singleton before and after each test."""
-    reset_auth_service()
+def reset_services():
+    """Reset all service singletons before and after each test."""
+    reset_container()
     yield
-    reset_auth_service()
+    reset_container()
 
 
 @pytest.fixture

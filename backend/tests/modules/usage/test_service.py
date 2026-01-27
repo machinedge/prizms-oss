@@ -4,7 +4,7 @@ import pytest
 from decimal import Decimal
 from datetime import datetime, timezone, timedelta
 
-from modules.usage.service import UsageService, reset_usage_service
+from modules.usage.service import UsageService
 from modules.usage.models import UsageRecord
 from modules.usage.pricing import StaticPricingProvider
 

@@ -168,9 +168,8 @@ def hybrid_pricing_provider(test_pricing_data, default_pricing):
 @pytest.fixture
 def usage_service(test_pricing_data, default_pricing):
     """Create a usage service with test pricing data."""
-    from modules.usage.service import UsageService, reset_usage_service
+    from modules.usage.service import UsageService
     from modules.usage.pricing import StaticPricingProvider
     
-    reset_usage_service()
     pricing_provider = StaticPricingProvider(test_pricing_data, default_pricing)
     return UsageService(pricing_provider=pricing_provider)

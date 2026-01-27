@@ -5,11 +5,7 @@ from unittest.mock import MagicMock
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from modules.debates.repository import (
-    DebateRepository,
-    get_debate_repository,
-    reset_debate_repository,
-)
+from modules.debates.repository import DebateRepository
 from modules.debates.models import (
     DebateStatus,
     PersonalityResponse,
@@ -95,14 +91,6 @@ def create_mock_synthesis_data(
         "cost": "0.005",
         "created_at": now,
     }
-
-
-@pytest.fixture(autouse=True)
-def reset_repository_singleton():
-    """Reset the repository singleton before each test."""
-    reset_debate_repository()
-    yield
-    reset_debate_repository()
 
 
 class TestDebateRepositoryCreateDebate:
@@ -509,30 +497,3 @@ class TestDebateRepositorySaveSynthesis:
         assert insert_data["cost"] == 0.005
 
 
-class TestGetDebateRepository:
-    """Tests for get_debate_repository singleton."""
-
-    def test_get_debate_repository_returns_singleton(self):
-        """Should return the same instance."""
-        from unittest.mock import patch
-
-        with patch("shared.database.get_supabase_client") as mock_get_client:
-            mock_get_client.return_value = MagicMock()
-
-            repo1 = get_debate_repository()
-            repo2 = get_debate_repository()
-
-            assert repo1 is repo2
-
-    def test_reset_debate_repository(self):
-        """Should reset the singleton."""
-        from unittest.mock import patch
-
-        with patch("shared.database.get_supabase_client") as mock_get_client:
-            mock_get_client.side_effect = [MagicMock(), MagicMock()]
-
-            repo1 = get_debate_repository()
-            reset_debate_repository()
-            repo2 = get_debate_repository()
-
-            assert repo1 is not repo2

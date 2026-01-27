@@ -12,7 +12,8 @@ import logging
 from decimal import Decimal
 from dataclasses import dataclass, field
 
-from modules.usage.service import get_usage_service, UsageService
+from api.dependencies import get_usage_service
+from modules.usage.service import UsageService
 from modules.usage.models import UsageRecord
 from modules.usage.token_counter import count_tokens, estimate_input_tokens
 

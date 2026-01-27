@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch, AsyncMock
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from modules.debates.service import DebateService, get_debate_service, reset_debate_service
-from modules.debates.repository import DebateRepository, reset_debate_repository
+from modules.debates.service import DebateService
+from modules.debates.repository import DebateRepository
 from modules.debates.models import (
     CreateDebateRequest,
     Debate,
@@ -50,16 +50,6 @@ def create_mock_debate(
         created_at=now,
         updated_at=now,
     )
-
-
-@pytest.fixture(autouse=True)
-def reset_singletons():
-    """Reset all singletons before each test."""
-    reset_debate_service()
-    reset_debate_repository()
-    yield
-    reset_debate_service()
-    reset_debate_repository()
 
 
 class TestDebateService:
@@ -445,13 +435,3 @@ class TestDebateService:
         )
 
 
-class TestGetDebateService:
-    def test_get_debate_service_returns_singleton(self):
-        """Should return the same instance."""
-        with patch("modules.debates.repository.get_debate_repository") as mock_get_repo:
-            mock_get_repo.return_value = MagicMock(spec=DebateRepository)
-
-            service1 = get_debate_service()
-            service2 = get_debate_service()
-
-            assert service1 is service2

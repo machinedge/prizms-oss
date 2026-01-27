@@ -3,7 +3,7 @@
 import pytest
 from decimal import Decimal
 
-from modules.billing.service import BillingService, get_billing_service
+from modules.billing.service import BillingService
 from modules.billing.models import TransactionType, SubscriptionTier
 from modules.billing.exceptions import InsufficientCreditsError, InvalidAmountError
 
@@ -223,21 +223,3 @@ class TestBillingService:
         assert tx.balance_after == Decimal("25.00")
 
 
-class TestGetBillingService:
-    def test_returns_singleton(self):
-        """Should return the same instance."""
-        # Reset the singleton for this test
-        import modules.billing.service as svc
-        svc._service_instance = None
-
-        service1 = get_billing_service()
-        service2 = get_billing_service()
-        assert service1 is service2
-
-    def test_returns_billing_service_instance(self):
-        """Should return a BillingService instance."""
-        import modules.billing.service as svc
-        svc._service_instance = None
-
-        service = get_billing_service()
-        assert isinstance(service, BillingService)

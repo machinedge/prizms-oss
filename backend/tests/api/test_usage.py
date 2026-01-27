@@ -95,7 +95,7 @@ class TestUsageSummaryEndpoint:
 
     def test_returns_usage_summary(self, client, auth_headers, mock_usage_service):
         """Should return usage summary for authenticated user."""
-        from modules.usage.service import get_usage_service
+        from api.dependencies import get_usage_service
         from api.middleware.auth import get_current_user
         from shared.models import AuthenticatedUser
         
@@ -129,7 +129,7 @@ class TestUsageSummaryEndpoint:
 
     def test_returns_correct_period_dates(self, client, auth_headers, mock_usage_service):
         """Should return correct period dates."""
-        from modules.usage.service import get_usage_service
+        from api.dependencies import get_usage_service
         from api.middleware.auth import get_current_user
         from shared.models import AuthenticatedUser
         
@@ -163,7 +163,8 @@ class TestUsageSummaryEndpoint:
 
     def test_returns_zero_usage_for_new_user(self, client, auth_headers):
         """Should return zero usage for user with no history."""
-        from modules.usage.service import get_usage_service, UsageService
+        from api.dependencies import get_usage_service
+        from modules.usage.service import UsageService
         from api.middleware.auth import get_current_user
         from shared.models import AuthenticatedUser
         from modules.usage.pricing import StaticPricingProvider

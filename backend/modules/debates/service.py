@@ -225,22 +225,3 @@ class DebateService(IDebateService):
         return self._repository.save_synthesis(debate_id, content, input_tokens, output_tokens, cost)
 
 
-# Module-level instance getter
-_service_instance: Optional[DebateService] = None
-
-
-def get_debate_service() -> DebateService:
-    """Get the debate service singleton."""
-    global _service_instance
-    if _service_instance is None:
-        from .repository import get_debate_repository
-        _service_instance = DebateService(
-            repository=get_debate_repository(),
-        )
-    return _service_instance
-
-
-def reset_debate_service() -> None:
-    """Reset the debate service singleton (for testing)."""
-    global _service_instance
-    _service_instance = None

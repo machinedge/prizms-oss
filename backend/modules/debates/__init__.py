@@ -35,7 +35,7 @@ from .exceptions import (
     DebateCancelledError,
     ProviderError,
 )
-from .repository import DebateRepository, get_debate_repository, reset_debate_repository
+from .repository import DebateRepository
 
 __all__ = [
     # Interface
@@ -64,6 +64,4 @@ __all__ = [
     "ProviderError",
     # Repository
     "DebateRepository",
-    "get_debate_repository",
-    "reset_debate_repository",
 ]

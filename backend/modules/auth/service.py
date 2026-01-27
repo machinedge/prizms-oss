@@ -95,21 +95,3 @@ def _verify_interface():
     """Type check that AuthService implements IAuthService."""
     service: IAuthService = AuthService()
     return service
-
-
-# Module-level instance getter
-_service_instance: Optional[AuthService] = None
-
-
-def get_auth_service() -> AuthService:
-    """Get the auth service singleton."""
-    global _service_instance
-    if _service_instance is None:
-        _service_instance = AuthService()
-    return _service_instance
-
-
-def reset_auth_service() -> None:
-    """Reset the auth service singleton (for testing)."""
-    global _service_instance
-    _service_instance = None

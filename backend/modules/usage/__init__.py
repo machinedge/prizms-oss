@@ -35,8 +35,6 @@ from .pricing import (
 from .service import (
     UsageService,
     SupabaseUsageService,
-    get_usage_service,
-    reset_usage_service,
 )
 from .token_counter import (
     count_tokens,
@@ -73,8 +71,6 @@ __all__ = [
     # Service
     "UsageService",
     "SupabaseUsageService",
-    "get_usage_service",
-    "reset_usage_service",
     # Token counting
     "count_tokens",
     "count_message_tokens",

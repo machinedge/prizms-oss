@@ -10,7 +10,8 @@ from pydantic import BaseModel
 
 from shared.models import AuthenticatedUser
 from ..middleware.auth import get_current_user
-from modules.usage.service import get_usage_service, UsageService
+from api.dependencies import get_usage_service
+from modules.usage.service import UsageService
 
 router = APIRouter()
 

@@ -406,20 +406,3 @@ class DebateRepository(BaseRepository[Debate]):
         )
 
 
-# Module-level instance getter
-_repository_instance: Optional[DebateRepository] = None
-
-
-def get_debate_repository() -> DebateRepository:
-    """Get the debate repository singleton."""
-    global _repository_instance
-    if _repository_instance is None:
-        from shared.database import get_supabase_client
-        _repository_instance = DebateRepository(get_supabase_client())
-    return _repository_instance
-
-
-def reset_debate_repository() -> None:
-    """Reset the debate repository singleton (for testing)."""
-    global _repository_instance
-    _repository_instance = None

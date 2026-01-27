@@ -13,17 +13,9 @@ from api.middleware.auth import get_current_user, get_optional_user, AuthError
 from shared.models import AuthenticatedUser
 from modules.auth.models import JWTPayload
 from modules.auth.exceptions import InvalidTokenError, ExpiredTokenError, MissingTokenError
-from modules.auth.service import reset_auth_service
 
 client = TestClient(app)
 
-
-@pytest.fixture(autouse=True)
-def reset_auth_singleton():
-    """Reset the auth service singleton before each test."""
-    reset_auth_service()
-    yield
-    reset_auth_service()
 
 # Test JWT secret (only for testing)
 TEST_JWT_SECRET = "test-secret-key-for-testing-only"

@@ -160,13 +160,3 @@ class BillingService(IBillingService):
         return (Decimal(estimated_tokens) / 1000) * rate
 
 
-# Module-level instance getter
-_service_instance: Optional[BillingService] = None
-
-
-def get_billing_service() -> BillingService:
-    """Get the billing service singleton."""
-    global _service_instance
-    if _service_instance is None:
-        _service_instance = BillingService()
-    return _service_instance

@@ -394,19 +394,3 @@ class SupabaseUsageService(UsageService):
         ]
 
 
-# Module-level instance getter
-_service_instance: Optional[UsageService] = None
-
-
-def get_usage_service() -> UsageService:
-    """Get the usage service singleton."""
-    global _service_instance
-    if _service_instance is None:
-        _service_instance = UsageService()
-    return _service_instance
-
-
-def reset_usage_service() -> None:
-    """Reset the usage service singleton (for testing)."""
-    global _service_instance
-    _service_instance = None

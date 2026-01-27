@@ -10,7 +10,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from shared.models import AuthenticatedUser
-from modules.auth.service import get_auth_service
+from api.dependencies import get_auth_service
 from modules.auth.exceptions import (
     InvalidTokenError,
     ExpiredTokenError,
